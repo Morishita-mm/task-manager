@@ -48,24 +48,30 @@ fun TaskScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().background(AppBackground)) {
-            // Header
+            // Header Row (Text + Filter/Sort Buttons)
             Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = uiState.statusMessage,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = uiState.statusMessage,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
 
-            // Filter & Sort Bar
-            FilterSortBar(
-                onFilterClick = { showFilterSheet = true },
-                onSortClick = { showSortSheet = true },
-                activeFilterCount = uiState.taskFilterCriteria.selectedLabels.size +
-                        (if (uiState.taskFilterCriteria.dateQuery.isNotEmpty()) 1 else 0)
-            )
+                    FilterSortButtons(
+                        onFilterClick = { showFilterSheet = true },
+                        onSortClick = { showSortSheet = true },
+                        activeFilterCount = uiState.taskFilterCriteria.selectedLabels.size +
+                                (if (uiState.taskFilterCriteria.dateQuery.isNotEmpty()) 1 else 0)
+                    )
+                }
+            }
 
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
 
@@ -80,7 +86,6 @@ fun TaskScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
-                    // フィルタ済みのリストを使用
                     items(uiState.filteredIssues) { issue ->
                         TaskRow(
                             issue = issue,

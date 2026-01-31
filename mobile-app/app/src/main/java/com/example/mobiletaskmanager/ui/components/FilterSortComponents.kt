@@ -33,45 +33,33 @@ data class TaskFilterCriteria(
 
 // --- UI Components ---
 
+/**
+ * ヘッダーの右側に配置するためのフィルタ・ソートボタン群
+ */
 @Composable
-fun FilterSortBar(
+fun FilterSortButtons(
     onFilterClick: () -> Unit,
     onSortClick: () -> Unit,
     activeFilterCount: Int
 ) {
-    Row(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         // Filter Button
-        FilterButton(
-            onClick = onFilterClick,
-            isActive = activeFilterCount > 0
-        )
-        Spacer(modifier = Modifier.width(16.dp))
+        IconButton(onClick = onFilterClick) {
+            Icon(
+                imageVector = Icons.Default.FilterList,
+                contentDescription = "Filter",
+                // フィルタ適用中はアクセントカラーにする
+                tint = if (activeFilterCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            )
+        }
+
         // Sort Button
         IconButton(onClick = onSortClick) {
-            Icon(Icons.Default.Sort, contentDescription = "Sort", tint = MaterialTheme.colorScheme.onSurface)
-        }
-    }
-}
-
-@Composable
-fun FilterButton(onClick: () -> Unit, isActive: Boolean) {
-    FilledTonalButton(
-        onClick = onClick,
-        colors = if (isActive) ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.primary)
-        else ButtonDefaults.filledTonalButtonColors()
-    ) {
-        Icon(
-            Icons.Default.FilterList,
-            contentDescription = "Filter",
-            modifier = Modifier.size(18.dp),
-            tint = if (isActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-        )
-        if (isActive) {
-            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = Icons.Default.Sort,
+                contentDescription = "Sort",
+                tint = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }

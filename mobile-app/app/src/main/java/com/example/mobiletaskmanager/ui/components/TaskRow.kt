@@ -38,7 +38,7 @@ fun TaskRow(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "#${issue.number} ${issue.title}",
+                text = issue.title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary,

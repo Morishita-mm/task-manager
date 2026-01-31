@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -56,12 +57,29 @@ fun ReportScreen(
                 onBack = onBackToList
             )
         } else {
-            // Filter Bar
-            FilterSortBar(
-                onFilterClick = { showFilterSheet = true },
-                onSortClick = { showSortSheet = true },
-                activeFilterCount = if (uiState.reportFilterQuery.isNotEmpty()) 1 else 0
-            )
+            // Header Row (Daily Reports + Buttons)
+            Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Daily Reports",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+
+                    FilterSortButtons(
+                        onFilterClick = { showFilterSheet = true },
+                        onSortClick = { showSortSheet = true },
+                        activeFilterCount = if (uiState.reportFilterQuery.isNotEmpty()) 1 else 0
+                    )
+                }
+            }
 
             HorizontalDivider(color = DividerColor)
 
@@ -71,6 +89,7 @@ fun ReportScreen(
                 state = pullToRefreshState,
                 modifier = Modifier.fillMaxSize()
             ) {
+                // タイトルをヘッダーに移したので、リストからは削除
                 ReportListView(
                     reports = uiState.filteredReports,
                     onSelect = { report -> onSelectReport(report.path) }
@@ -102,16 +121,6 @@ fun ReportListView(
     onSelect: (RepoContent) -> Unit
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item {
-            Text(
-                "Daily Reports",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary,
-                modifier = Modifier.padding(16.dp),
-                fontWeight = FontWeight.Bold
-            )
-        }
-
         items(reports) { report ->
             Row(
                 modifier = Modifier
@@ -120,7 +129,7 @@ fun ReportListView(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.List, contentDescription = null, tint = PrimaryAccent)
+                Icon(Icons.Default.Description, contentDescription = null, tint = PrimaryAccent)
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = report.name.removeSuffix(".md"),

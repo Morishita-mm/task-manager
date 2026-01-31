@@ -41,24 +41,30 @@ fun ArchiveScreen(
             .fillMaxSize()
             .background(AppBackground)
     ) {
-        // Header
+        // Header Row
         Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = "Archive (${uiState.filteredClosedIssues.size})",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary,
-                modifier = Modifier.padding(16.dp)
-            )
-        }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Archive (${uiState.filteredClosedIssues.size})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
 
-        // Filter & Sort Bar
-        FilterSortBar(
-            onFilterClick = { showFilterSheet = true },
-            onSortClick = { showSortSheet = true },
-            activeFilterCount = uiState.archiveFilterCriteria.selectedLabels.size +
-                    (if (uiState.archiveFilterCriteria.dateQuery.isNotEmpty()) 1 else 0)
-        )
+                FilterSortButtons(
+                    onFilterClick = { showFilterSheet = true },
+                    onSortClick = { showSortSheet = true },
+                    activeFilterCount = uiState.archiveFilterCriteria.selectedLabels.size +
+                            (if (uiState.archiveFilterCriteria.dateQuery.isNotEmpty()) 1 else 0)
+                )
+            }
+        }
 
         HorizontalDivider(color = DividerColor, thickness = 1.dp)
 
@@ -107,7 +113,7 @@ fun ArchiveRow(issue: Issue) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "#${issue.number} ${issue.title}",
+                text = issue.title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Normal,
                 color = TextSecondary,
