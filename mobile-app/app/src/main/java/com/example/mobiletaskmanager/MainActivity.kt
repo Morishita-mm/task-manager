@@ -18,8 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox // ▼ 追加
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState // ▼ 追加
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
             TaskScreen(
                 uiState = uiState,
                 onCloseTask = viewModel::closeIssue,
-                onRefresh = viewModel::refresh, // ▼ 追加
+                onRefresh = viewModel::refresh,
                 onAddOneOff = viewModel::addOneOffTask,
                 onAddRoutine = viewModel::addRoutineTask
             )
@@ -92,14 +92,13 @@ class MainActivity : ComponentActivity() {
 fun TaskScreen(
     uiState: MainUiState,
     onCloseTask: (Issue) -> Unit,
-    onRefresh: () -> Unit, // ▼ 追加
+    onRefresh: () -> Unit,
     onAddOneOff: (String, List<Label>) -> Unit,
     onAddRoutine: (String, String, List<Label>) -> Unit
 ) {
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // PullToRefreshの状態管理
     val pullToRefreshState = rememberPullToRefreshState()
 
     Scaffold(
@@ -120,18 +119,16 @@ fun TaskScreen(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // 初回ロード用インジケータ
             if (uiState.isLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // ▼▼▼ 追加: PullToRefreshBoxでリストを囲む ▼▼▼
             PullToRefreshBox(
                 isRefreshing = uiState.isRefreshing,
                 onRefresh = onRefresh,
                 state = pullToRefreshState,
-                modifier = Modifier.weight(1f) // 残りの領域を埋める
+                modifier = Modifier.weight(1f)
             ) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(uiState.issues) { issue ->
@@ -140,7 +137,6 @@ fun TaskScreen(
                     }
                 }
             }
-            // ▲▲▲ 追加ここまで ▲▲▲
         }
 
         if (showBottomSheet) {
@@ -173,7 +169,6 @@ fun TaskScreen(
 
 // --- UI Components ---
 
-// GitHubの色コード変換拡張関数
 fun String.toColor(): Color {
     return try {
         Color(android.graphics.Color.parseColor("#$this"))
@@ -211,6 +206,9 @@ fun TaskRow(issue: Issue, onClose: (Issue) -> Unit) {
             ) {
                 issue.labels.forEach { label ->
                     if (label.name == "mobile-entry") return@forEach
+                    // routineラベルも一覧では表示しても良いですが、邪魔ならここで隠すことも可能です
+                    // if (label.name == "routine") return@forEach
+
                     AssistChip(
                         onClick = {},
                         label = { Text(label.name, style = MaterialTheme.typography.labelSmall) },
@@ -289,19 +287,28 @@ fun AddTaskSheetContent(
     var selectedDays by remember { mutableStateOf(emptySet<DayOfWeek>()) }
     var selectedLabels by remember { mutableStateOf(emptyList<Label>()) }
 
-    // ラベルのフィルタリング
+    // --- ラベルのグルーピングとフィルタリング ---
     val priorityLabels = remember(availableLabels) { availableLabels.filter { it.name.startsWith("p:") } }
     val contextLabels = remember(availableLabels) { availableLabels.filter { it.name.startsWith("c:") } }
+
+    // ▼ 追加: Timeラベル (t:)
+    val timeLabels = remember(availableLabels) { availableLabels.filter { it.name.startsWith("t:") } }
+
+    // ▼ 修正: Other Labelsから 'routine', 't:' を除外
     val otherLabels = remember(availableLabels) {
         availableLabels.filter {
-            !it.name.startsWith("p:") && !it.name.startsWith("c:") && !it.name.startsWith("s:") && it.name != "mobile-entry"
+            !it.name.startsWith("p:") &&
+                    !it.name.startsWith("c:") &&
+                    !it.name.startsWith("t:") && // Timeも除外
+                    !it.name.startsWith("s:") &&
+                    it.name != "mobile-entry" &&
+                    it.name != "routine" // routineラベルは手動選択させない
         }
     }
 
     val dayScrollState = rememberScrollState()
     val contentScrollState = rememberScrollState()
 
-    // 画面の60%の高さを確保して、トグル操作でのガタつきを防ぐ
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -324,7 +331,7 @@ fun AddTaskSheetContent(
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Label Sections
+        // --- Label Sections ---
         LabelSelectionSection(
             "Priority",
             priorityLabels,
@@ -339,6 +346,16 @@ fun AddTaskSheetContent(
             { l -> selectedLabels = if (selectedLabels.contains(l)) selectedLabels - l else selectedLabels + l },
             "c:"
         )
+
+        // ▼ 追加: Timeセクション
+        LabelSelectionSection(
+            "Time",
+            timeLabels,
+            selectedLabels,
+            { l -> selectedLabels = if (selectedLabels.contains(l)) selectedLabels - l else selectedLabels + l },
+            "t:"
+        )
+
         LabelSelectionSection(
             "Other Labels",
             otherLabels,
