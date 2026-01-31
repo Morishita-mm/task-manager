@@ -97,6 +97,44 @@ GITHUB_REPO=my-life
 
 ```
 
+## 🤖 Automation Setup (macOS)
+
+`task-batch/launchd/` に含まれる設定ファイルを使用して、定期処理を自動化します。
+
+### 1. Edit Configuration Files
+
+`task-batch/launchd/` 内の `.plist` ファイルを開き、以下のパスをご自身の環境に合わせて書き換えてください。
+
+* `ProgramArguments`: `task-batch` 実行ファイルへの絶対パス
+* `WorkingDirectory`: `task-batch` プロジェクトディレクトリへの絶対パス
+* `StandardOutPath` / `StandardErrorPath`: ログ出力先のパス
+
+### 2. Install Launch Agents
+
+編集したファイルを `~/Library/LaunchAgents/` にコピーします。
+
+```bash
+cp task-batch/launchd/*.plist ~/Library/LaunchAgents/
+
+```
+
+### 3. Load & Start
+
+`launchctl` コマンドでジョブを登録し、開始します。
+
+```bash
+# Generate Task Job (Morning)
+launchctl load ~/Library/LaunchAgents/com.yourname.taskmanager.plist
+launchctl start com.yourname.taskmanager
+
+# Report & Cleanup Job (Night)
+launchctl load ~/Library/LaunchAgents/com.yourname.taskmanager.report.plist
+launchctl start com.yourname.taskmanager.report
+
+```
+
+※ 設定を変更した場合は、一度 `unload` してから再度 `load` してください。
+
 ## 📂 Directory Structure
 
 ```text
@@ -105,9 +143,12 @@ GITHUB_REPO=my-life
 │   ├── src/
 │   │   ├── main.rs       # Batch Logic (Generate, Cleanup, Report)
 │   │   └── ...
+│   ├── launchd/          # Launchd Configuration Files (.plist)
+│   │   ├── com.xxx.taskmanager.plist
+│   │   └── com.xxx.taskmanager.report.plist
 │   ├── .env              # Secrets (Not committed)
 │   └── Cargo.toml
-├── app/                  # Android Project
+├── mobile-app/                  # Android Project
 │   ├── src/main/java/com/example/mobiletaskmanager/
 │   │   ├── data/         # Repository & API Definitions
 │   │   ├── ui/           # ViewModel & Compose UI
@@ -143,7 +184,7 @@ routines:
 * **`c:` (Context)** - `c:dev`, `c:work`, `c:life`, `c:health`
 * **`t:` (Time)** - `t:15m`, `t:1h` (所要時間目安)
 
-## 💻 Usage
+## 💻 Usage (Manual)
 
 ### Rust CLI
 
@@ -159,19 +200,12 @@ cargo run --release -- report
 
 ```
 
-### Automation (macOS)
-
-`~/Library/LaunchAgents/` にplistを配置することで自動実行されます。
-
-* `com.yourname.taskmanager.plist`: 毎朝 09:00 に `generate` を実行
-* `com.yourname.taskmanager.report.plist`: 毎晩 23:00 に `report` と `cleanup` を実行
-
 ## 📸 Screenshots
 
 | Task List | Add Task (Bottom Sheet) |
 | --- | --- |
-| <img src="docs/screen1.png" width="300" /> | <img src="docs/screen2.png" width="300" /> |
+| <img src="docs/task-list.jpg" width="300" /> | <img src="docs/add-task.jpg" width="300" /> |
 
 ---
 
-*Created by [Your Name]*
+*Created by Morishita-mm*
