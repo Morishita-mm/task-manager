@@ -1,0 +1,4 @@
+target/*
+task-batch/target/*
+
+task-batch/.env
