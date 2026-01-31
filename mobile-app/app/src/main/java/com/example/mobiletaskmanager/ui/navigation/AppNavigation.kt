@@ -5,10 +5,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -19,16 +19,15 @@ import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.ui.GuidelineScreen
 import com.example.mobiletaskmanager.ui.MainUiState
 import com.example.mobiletaskmanager.ui.MainViewModel
+import com.example.mobiletaskmanager.ui.screens.ArchiveScreen
 import com.example.mobiletaskmanager.ui.screens.ReportScreen
 import com.example.mobiletaskmanager.ui.screens.TaskScreen
 import com.example.mobiletaskmanager.ui.theme.*
 import kotlinx.coroutines.launch
-import androidx.compose.material.icons.filled.Check // 追加
-import com.example.mobiletaskmanager.ui.screens.ArchiveScreen
 
 enum class Screen(val title: String, val icon: ImageVector) {
     Tasks("Tasks", Icons.Default.List),
-    Reports("Reports", Icons.Default.Description),
+    Reports("Reports", Icons.Default.List),
     Archive("Archive", Icons.Default.Check),
     Guidelines("Guidelines", Icons.Default.Info)
 }
@@ -99,6 +98,7 @@ fun AppNavigation(
                 when (currentScreen) {
                     Screen.Tasks -> TaskScreen(
                         uiState = uiState,
+                        viewModel = viewModel,
                         onCloseTask = viewModel::closeIssue,
                         onRefresh = viewModel::refresh,
                         onUpdateStatus = viewModel::updateIssueStatus,
@@ -107,12 +107,14 @@ fun AppNavigation(
                     )
                     Screen.Reports -> ReportScreen(
                         uiState = uiState,
+                        viewModel = viewModel,
                         onLoadReports = viewModel::loadReports,
                         onSelectReport = viewModel::selectReport,
                         onBackToList = viewModel::clearSelectedReport
                     )
                     Screen.Archive -> ArchiveScreen(
                         uiState = uiState,
+                        viewModel = viewModel,
                         onLoadArchive = viewModel::loadClosedIssues
                     )
                     Screen.Guidelines -> GuidelineScreen()

@@ -4,22 +4,34 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mobiletaskmanager.data.model.Issue
 import com.example.mobiletaskmanager.data.model.Label
-import com.example.mobiletaskmanager.data.model.RepoContent // 追加
+import com.example.mobiletaskmanager.data.model.RepoContent
 import com.example.mobiletaskmanager.data.repository.GithubRepository
+import com.example.mobiletaskmanager.ui.components.SortOption
+import com.example.mobiletaskmanager.ui.components.TaskFilterCriteria
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class MainUiState(
-    val issues: List<Issue> = emptyList(),
-    val closedIssues: List<Issue> = emptyList(), // 追加: 完了済みタスク
+    // フィルタリング適用後のデータ
+    val filteredIssues: List<Issue> = emptyList(),
+    val filteredClosedIssues: List<Issue> = emptyList(),
+    val filteredReports: List<RepoContent> = emptyList(),
+
     val labels: List<Label> = emptyList(),
-    val reportFiles: List<RepoContent> = emptyList(), // 追加: レポートファイル一覧
-    val selectedReportContent: String? = null,        // 追加: 選択されたレポートの中身
     val statusMessage: String = "Loading...",
     val isLoading: Boolean = false,
-    val isRefreshing: Boolean = false
+    val isRefreshing: Boolean = false,
+    val selectedReportContent: String? = null,
+
+    // 現在のフィルタ・ソート状態
+    val taskFilterCriteria: TaskFilterCriteria = TaskFilterCriteria(),
+    val taskSortOption: SortOption = SortOption.CREATED_DESC,
+    val archiveFilterCriteria: TaskFilterCriteria = TaskFilterCriteria(),
+    val archiveSortOption: SortOption = SortOption.CREATED_DESC,
+    val reportFilterQuery: String = "",
+    val reportSortOption: SortOption = SortOption.NAME_DESC
 )
 
 class MainViewModel(
@@ -28,6 +40,19 @@ class MainViewModel(
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
+
+    // 生データ保持用
+    private var _rawIssues: List<Issue> = emptyList()
+    private var _rawClosedIssues: List<Issue> = emptyList()
+    private var _rawReports: List<RepoContent> = emptyList()
+
+    // 状態管理用
+    private val _taskFilter = MutableStateFlow(TaskFilterCriteria())
+    private val _taskSort = MutableStateFlow(SortOption.CREATED_DESC)
+    private val _archiveFilter = MutableStateFlow(TaskFilterCriteria())
+    private val _archiveSort = MutableStateFlow(SortOption.CREATED_DESC)
+    private val _reportFilterQuery = MutableStateFlow("")
+    private val _reportSort = MutableStateFlow(SortOption.NAME_DESC)
 
     init {
         loadData()
@@ -51,40 +76,144 @@ class MainViewModel(
 
     private suspend fun fetchDataInternal() {
         try {
-            // 並列実行するのが理想ですが、簡易的に直列で記述します
             val labels = repository.getLabels()
             val issues = repository.getIssues()
-            // ※ ClosedIssuesやReportsは、画面を開いた時に取得する設計もアリですが、
-            // 今回はシンプルに一括取得します（通信量が増える点に注意）
-            // val closed = repository.getClosedIssues()
-            // val reports = repository.getReportFiles()
-            // ↑ 全てここで呼ぶと重いので、専用のロード関数を作ります
+
+            _rawIssues = issues // 生データを保存
 
             _uiState.value = _uiState.value.copy(
                 labels = labels,
-                issues = issues,
                 statusMessage = "Active Tasks: ${issues.size}"
             )
+            applyFilters() // フィルタ適用
         } catch (e: Exception) {
             _uiState.value = _uiState.value.copy(statusMessage = "Error: ${e.message}")
         }
     }
 
-    // ▼▼▼ 追加: レポート一覧のロード ▼▼▼
+    fun loadClosedIssues() {
+        viewModelScope.launch {
+            try {
+                _uiState.value = _uiState.value.copy(isLoading = true)
+                val closed = repository.getClosedIssues()
+                _rawClosedIssues = closed
+                _uiState.value = _uiState.value.copy(isLoading = false)
+                applyFilters()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    statusMessage = "Failed to load archive: ${e.message}"
+                )
+            }
+        }
+    }
+
     fun loadReports() {
         viewModelScope.launch {
             try {
                 val reports = repository.getReportFiles()
-                // 日付順などでソートしたい場合はここで (nameが "YYYY-MM-DD.md" なら名前降順で新しい順になる)
-                val sortedReports = reports.sortedByDescending { it.name }
-                _uiState.value = _uiState.value.copy(reportFiles = sortedReports)
+                _rawReports = reports
+                applyFilters()
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(statusMessage = "Failed to load reports: ${e.message}")
             }
         }
     }
 
-    // ▼▼▼ 追加: 特定のレポート内容のロード ▼▼▼
+    // --- フィルタ適用ロジック ---
+
+    private fun applyFilters() {
+        _uiState.value = _uiState.value.copy(
+            filteredIssues = filterAndSortTasks(_rawIssues, _taskFilter.value, _taskSort.value),
+            filteredClosedIssues = filterAndSortTasks(_rawClosedIssues, _archiveFilter.value, _archiveSort.value),
+            filteredReports = filterAndSortReports(_rawReports, _reportFilterQuery.value, _reportSort.value),
+
+            taskFilterCriteria = _taskFilter.value,
+            taskSortOption = _taskSort.value,
+            archiveFilterCriteria = _archiveFilter.value,
+            archiveSortOption = _archiveSort.value,
+            reportFilterQuery = _reportFilterQuery.value,
+            reportSortOption = _reportSort.value
+        )
+    }
+
+    private fun filterAndSortTasks(issues: List<Issue>, filter: TaskFilterCriteria, sort: SortOption): List<Issue> {
+        var result = issues.filter { issue ->
+            if (filter.selectedLabels.isEmpty()) true
+            else filter.selectedLabels.all { reqLabel -> issue.labels.any { it.name == reqLabel } }
+        }
+
+        if (filter.dateQuery.isNotEmpty()) {
+            result = result.filter {
+                it.createdAt.toString().contains(filter.dateQuery)
+            }
+        }
+
+        result = when (sort) {
+            SortOption.CREATED_DESC -> result.sortedByDescending { it.createdAt }
+            SortOption.CREATED_ASC -> result.sortedBy { it.createdAt }
+            SortOption.PRIORITY_DESC -> result.sortedByDescending { getPriorityScore(issue = it) }
+            SortOption.PRIORITY_ASC -> result.sortedBy { getPriorityScore(issue = it) }
+            SortOption.NAME_ASC -> result.sortedBy { it.title }
+            SortOption.NAME_DESC -> result.sortedByDescending { it.title }
+        }
+        return result
+    }
+
+    private fun getPriorityScore(issue: Issue): Int {
+        val pLabel = issue.labels.find { it.name.startsWith("p:") }?.name ?: return 0
+        return when (pLabel) {
+            "p:critical" -> 4
+            "p:high" -> 3
+            "p:medium" -> 2
+            "p:low" -> 1
+            else -> 0
+        }
+    }
+
+    private fun filterAndSortReports(reports: List<RepoContent>, query: String, sort: SortOption): List<RepoContent> {
+        var result = reports.filter { it.type == "file" && it.name.endsWith(".md") }
+
+        if (query.isNotEmpty()) {
+            result = result.filter { it.name.contains(query) }
+        }
+
+        result = when (sort) {
+            SortOption.NAME_ASC, SortOption.CREATED_ASC -> result.sortedBy { it.name }
+            SortOption.NAME_DESC, SortOption.CREATED_DESC, SortOption.PRIORITY_DESC, SortOption.PRIORITY_ASC -> result.sortedByDescending { it.name }
+        }
+        return result
+    }
+
+    // --- UIからの操作用メソッド ---
+
+    fun setTaskFilter(criteria: TaskFilterCriteria) {
+        _taskFilter.value = criteria
+        applyFilters()
+    }
+    fun setTaskSort(option: SortOption) {
+        _taskSort.value = option
+        applyFilters()
+    }
+
+    fun setArchiveFilter(criteria: TaskFilterCriteria) {
+        _archiveFilter.value = criteria
+        applyFilters()
+    }
+    fun setArchiveSort(option: SortOption) {
+        _archiveSort.value = option
+        applyFilters()
+    }
+
+    fun setReportFilter(query: String) {
+        _reportFilterQuery.value = query
+        applyFilters()
+    }
+    fun setReportSort(option: SortOption) {
+        _reportSort.value = option
+        applyFilters()
+    }
+
     fun selectReport(path: String) {
         viewModelScope.launch {
             try {
@@ -97,25 +226,22 @@ class MainViewModel(
         }
     }
 
-    // ▼▼▼ 追加: 選択解除（一覧に戻る） ▼▼▼
     fun clearSelectedReport() {
         _uiState.value = _uiState.value.copy(selectedReportContent = null)
     }
 
+    // --- 既存のタスク操作メソッド ---
+
     fun closeIssue(issue: Issue) {
         viewModelScope.launch {
             try {
-                // UI上で先行してリストから削除（楽観的UI更新）
-                val currentList = _uiState.value.issues
+                // UI上での楽観的更新 (filteredリストからも消す)
                 _uiState.value = _uiState.value.copy(
-                    issues = currentList.filter { it.number != issue.number }
+                    filteredIssues = _uiState.value.filteredIssues.filter { it.number != issue.number }
                 )
 
                 repository.closeIssue(issue.number)
-
-                _uiState.value = _uiState.value.copy(
-                    statusMessage = "Active Tasks: ${_uiState.value.issues.size}"
-                )
+                refresh()
             } catch (e: Exception) {
                 refresh()
             }
@@ -125,16 +251,9 @@ class MainViewModel(
     fun updateIssueStatus(issue: Issue, newStatusLabel: Label) {
         viewModelScope.launch {
             try {
-                // 1. 現在のラベルリストから、既存のステータス(s:...)を除去
                 val otherLabels = issue.labels.filter { !it.name.startsWith("s:") }.map { it.name }
-
-                // 2. 新しいステータスを追加
                 val newLabelList = otherLabels + newStatusLabel.name
-
-                // 3. API更新
                 repository.updateIssueLabels(issue.number, newLabelList)
-
-                // 4. UI更新（再取得）
                 refresh()
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(statusMessage = "Error: ${e.message}")
@@ -146,13 +265,8 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 val labelNames = selectedLabels.map { it.name } + "mobile-entry"
-                val newIssue = repository.createIssue(title, labelNames)
-
-                val currentList = _uiState.value.issues
-                _uiState.value = _uiState.value.copy(
-                    issues = listOf(newIssue) + currentList,
-                    statusMessage = "Active Tasks: ${currentList.size + 1}"
-                )
+                repository.createIssue(title, labelNames)
+                refresh()
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(statusMessage = "Error: ${e.message}")
             }
@@ -167,24 +281,6 @@ class MainViewModel(
                 _uiState.value = _uiState.value.copy(statusMessage = "Routine Added!")
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(statusMessage = "Error: ${e.message}")
-            }
-        }
-    }
-
-    fun loadClosedIssues() {
-        viewModelScope.launch {
-            try {
-                _uiState.value = _uiState.value.copy(isLoading = true)
-                val closed = repository.getClosedIssues()
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    closedIssues = closed
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    statusMessage = "Failed to load archive: ${e.message}"
-                )
             }
         }
     }

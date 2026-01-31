@@ -10,26 +10,28 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.data.model.Issue
 import com.example.mobiletaskmanager.ui.MainUiState
-import com.example.mobiletaskmanager.ui.components.toColor
+import com.example.mobiletaskmanager.ui.MainViewModel
+import com.example.mobiletaskmanager.ui.components.*
 import com.example.mobiletaskmanager.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArchiveScreen(
     uiState: MainUiState,
+    viewModel: MainViewModel,
     onLoadArchive: () -> Unit
 ) {
-    // 画面表示時にロード
+    var showFilterSheet by remember { mutableStateOf(false) }
+    var showSortSheet by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         onLoadArchive()
     }
@@ -42,13 +44,22 @@ fun ArchiveScreen(
         // Header
         Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = "Archive (${uiState.closedIssues.size})",
+                text = "Archive (${uiState.filteredClosedIssues.size})",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary,
                 modifier = Modifier.padding(16.dp)
             )
         }
+
+        // Filter & Sort Bar
+        FilterSortBar(
+            onFilterClick = { showFilterSheet = true },
+            onSortClick = { showSortSheet = true },
+            activeFilterCount = uiState.archiveFilterCriteria.selectedLabels.size +
+                    (if (uiState.archiveFilterCriteria.dateQuery.isNotEmpty()) 1 else 0)
+        )
+
         HorizontalDivider(color = DividerColor, thickness = 1.dp)
 
         if (uiState.isLoading) {
@@ -59,11 +70,29 @@ fun ArchiveScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 16.dp)
         ) {
-            items(uiState.closedIssues) { issue ->
+            items(uiState.filteredClosedIssues) { issue ->
                 ArchiveRow(issue = issue)
                 HorizontalDivider(color = DividerColor, thickness = 1.dp)
             }
         }
+    }
+
+    // Sheets
+    if (showSortSheet) {
+        SortBottomSheet(
+            currentSort = uiState.archiveSortOption,
+            onSortSelected = viewModel::setArchiveSort,
+            onDismiss = { showSortSheet = false }
+        )
+    }
+    if (showFilterSheet) {
+        TaskFilterBottomSheet(
+            labels = uiState.labels,
+            currentFilter = uiState.archiveFilterCriteria,
+            onApply = viewModel::setArchiveFilter,
+            onReset = { viewModel.setArchiveFilter(TaskFilterCriteria()) },
+            onDismiss = { showFilterSheet = false }
+        )
     }
 }
 
@@ -72,7 +101,7 @@ fun ArchiveRow(issue: Issue) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(SurfaceColor.copy(alpha = 0.5f)) // 少し暗くして「完了感」を出す
+            .background(SurfaceColor.copy(alpha = 0.5f))
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -80,9 +109,9 @@ fun ArchiveRow(issue: Issue) {
             Text(
                 text = "#${issue.number} ${issue.title}",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Normal, // 太字をやめる
-                color = TextSecondary, // 色を薄くする
-                textDecoration = TextDecoration.LineThrough, // 取り消し線を入れる
+                fontWeight = FontWeight.Normal,
+                color = TextSecondary,
+                textDecoration = TextDecoration.LineThrough,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
@@ -93,7 +122,6 @@ fun ArchiveRow(issue: Issue) {
                 ) {
                     issue.labels.forEach { label ->
                         if (label.name == "mobile-entry") return@forEach
-                        // ラベルも彩度を落として表示
                         val bgColor = label.color.toColor().copy(alpha = 0.3f)
                         Surface(
                             color = bgColor,
@@ -116,11 +144,10 @@ fun ArchiveRow(issue: Issue) {
 
         Spacer(modifier = Modifier.width(16.dp))
 
-        // 完了済みアイコン (操作不可)
         Icon(
             imageVector = Icons.Default.CheckCircle,
             contentDescription = "Closed",
-            tint = TextSecondary, // グレーアウト
+            tint = TextSecondary,
             modifier = Modifier.size(24.dp)
         )
     }

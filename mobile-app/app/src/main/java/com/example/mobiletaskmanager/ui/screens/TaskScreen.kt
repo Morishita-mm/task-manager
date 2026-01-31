@@ -18,8 +18,8 @@ import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.data.model.Issue
 import com.example.mobiletaskmanager.data.model.Label
 import com.example.mobiletaskmanager.ui.MainUiState
-import com.example.mobiletaskmanager.ui.components.AddTaskSheetContent
-import com.example.mobiletaskmanager.ui.components.TaskRow
+import com.example.mobiletaskmanager.ui.MainViewModel
+import com.example.mobiletaskmanager.ui.components.*
 import com.example.mobiletaskmanager.ui.theme.*
 import java.time.format.TextStyle
 import java.util.Locale
@@ -28,6 +28,7 @@ import java.util.Locale
 @Composable
 fun TaskScreen(
     uiState: MainUiState,
+    viewModel: MainViewModel,
     onCloseTask: (Issue) -> Unit,
     onRefresh: () -> Unit,
     onUpdateStatus: (Issue, Label) -> Unit,
@@ -35,6 +36,9 @@ fun TaskScreen(
     onAddRoutine: (String, String, List<Label>) -> Unit
 ) {
     var showBottomSheet by remember { mutableStateOf(false) }
+    var showFilterSheet by remember { mutableStateOf(false) }
+    var showSortSheet by remember { mutableStateOf(false) }
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val pullToRefreshState = rememberPullToRefreshState()
 
@@ -54,6 +58,15 @@ fun TaskScreen(
                     modifier = Modifier.padding(16.dp)
                 )
             }
+
+            // Filter & Sort Bar
+            FilterSortBar(
+                onFilterClick = { showFilterSheet = true },
+                onSortClick = { showSortSheet = true },
+                activeFilterCount = uiState.taskFilterCriteria.selectedLabels.size +
+                        (if (uiState.taskFilterCriteria.dateQuery.isNotEmpty()) 1 else 0)
+            )
+
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
 
             // Task List
@@ -67,7 +80,8 @@ fun TaskScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
-                    items(uiState.issues) { issue ->
+                    // フィルタ済みのリストを使用
+                    items(uiState.filteredIssues) { issue ->
                         TaskRow(
                             issue = issue,
                             statusLabels = statusLabels,
@@ -91,7 +105,7 @@ fun TaskScreen(
             Icon(Icons.Default.Add, contentDescription = "Add Task", modifier = Modifier.size(28.dp))
         }
 
-        // Bottom Sheet
+        // Sheets
         if (showBottomSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showBottomSheet = false },
@@ -118,6 +132,23 @@ fun TaskScreen(
                     }
                 )
             }
+        }
+
+        if (showSortSheet) {
+            SortBottomSheet(
+                currentSort = uiState.taskSortOption,
+                onSortSelected = viewModel::setTaskSort,
+                onDismiss = { showSortSheet = false }
+            )
+        }
+        if (showFilterSheet) {
+            TaskFilterBottomSheet(
+                labels = uiState.labels,
+                currentFilter = uiState.taskFilterCriteria,
+                onApply = viewModel::setTaskFilter,
+                onReset = { viewModel.setTaskFilter(TaskFilterCriteria()) },
+                onDismiss = { showFilterSheet = false }
+            )
         }
     }
 }

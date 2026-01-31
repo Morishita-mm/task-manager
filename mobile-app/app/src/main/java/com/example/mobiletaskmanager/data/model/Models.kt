@@ -2,6 +2,7 @@
 
 package com.example.mobiletaskmanager.data.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -9,13 +10,15 @@ data class Issue(
     val number: Int,
     val title: String,
     val state: String,
+    @SerialName("created_at")
+    val createdAt: String,
     val labels: List<Label> = emptyList()
 )
 
 @Serializable
 data class Label(
     val name: String,
-    val color: String
+    val color: String = "808080"
 )
 
 @Serializable
