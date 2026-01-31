@@ -1,8 +1,18 @@
 package com.example.mobiletaskmanager.data.repository
 
+import android.annotation.SuppressLint
 import android.util.Base64
 import com.example.mobiletaskmanager.data.api.GithubApiService
 import com.example.mobiletaskmanager.data.model.*
+import kotlinx.serialization.Serializable
+
+@SuppressLint("UnsafeOptInUsageError")
+@Serializable
+data class UpdateIssueRequest(
+    val state: String? = null,
+    val labels: List<String>? = null
+)
+// ▲▲▲ 修正ここまで ▲▲▲
 
 class GithubRepository(
     private val api: GithubApiService,
@@ -21,17 +31,22 @@ class GithubRepository(
     }
 
     suspend fun closeIssue(number: Int) {
-        api.updateIssue(authHeader, owner, repo, number, UpdateIssueRequest("closed"))
+        // stateだけ指定して更新
+        api.updateIssue(authHeader, owner, repo, number, UpdateIssueRequest(state = "closed"))
     }
 
-    // ▼▼▼ 修正箇所: 戻り値を Issue に変更し、return を追加 ▼▼▼
+    // ▼▼▼ 追加: ラベルのみを更新する関数 ▼▼▼
+    suspend fun updateIssueLabels(number: Int, labels: List<String>) {
+        api.updateIssue(authHeader, owner, repo, number, UpdateIssueRequest(labels = labels))
+    }
+    // ▲▲▲ 追加ここまで ▲▲▲
+
     suspend fun createIssue(title: String, labels: List<String>): Issue {
         return api.createIssue(
             authHeader, owner, repo,
             CreateIssueRequest(title, labels)
         )
     }
-    // ▲▲▲ 修正ここまで ▲▲▲
 
     suspend fun createRoutineTask(title: String, schedule: String, labelNames: List<String>) {
         val path = "config/routines.yaml"

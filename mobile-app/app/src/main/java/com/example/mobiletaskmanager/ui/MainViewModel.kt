@@ -65,16 +65,39 @@ class MainViewModel(
     fun closeIssue(issue: Issue) {
         viewModelScope.launch {
             try {
+                // UI上で先行してリストから削除（楽観的UI更新）
                 val currentList = _uiState.value.issues
                 _uiState.value = _uiState.value.copy(
                     issues = currentList.filter { it.number != issue.number }
                 )
+
                 repository.closeIssue(issue.number)
+
                 _uiState.value = _uiState.value.copy(
                     statusMessage = "Active Tasks: ${_uiState.value.issues.size}"
                 )
             } catch (e: Exception) {
                 refresh()
+            }
+        }
+    }
+
+    fun updateIssueStatus(issue: Issue, newStatusLabel: Label) {
+        viewModelScope.launch {
+            try {
+                // 1. 現在のラベルリストから、既存のステータス(s:...)を除去
+                val otherLabels = issue.labels.filter { !it.name.startsWith("s:") }.map { it.name }
+
+                // 2. 新しいステータスを追加
+                val newLabelList = otherLabels + newStatusLabel.name
+
+                // 3. API更新
+                repository.updateIssueLabels(issue.number, newLabelList)
+
+                // 4. UI更新（再取得）
+                refresh()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(statusMessage = "Error: ${e.message}")
             }
         }
     }

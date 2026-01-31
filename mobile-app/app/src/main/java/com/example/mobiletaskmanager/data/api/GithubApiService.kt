@@ -4,7 +4,6 @@ package com.example.mobiletaskmanager.data.api // パッケージ名はご自身
 
 import com.example.mobiletaskmanager.data.model.CreateIssueRequest
 import com.example.mobiletaskmanager.data.model.UpdateFileRequest
-import com.example.mobiletaskmanager.data.model.UpdateIssueRequest
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 import retrofit2.http.Body
@@ -91,7 +90,7 @@ interface GithubApiService {
         @Path("owner") owner: String,
         @Path("repo") repo: String,
         @Path("number") number: Int,
-        @Body body: UpdateIssueRequest
+        @Body body: com.example.mobiletaskmanager.data.repository.UpdateIssueRequest
     ): Issue
 
     // 3. ファイル内容取得 (YAML読み込み用)
