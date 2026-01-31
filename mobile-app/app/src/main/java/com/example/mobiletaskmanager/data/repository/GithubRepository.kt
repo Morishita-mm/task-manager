@@ -12,7 +12,6 @@ data class UpdateIssueRequest(
     val state: String? = null,
     val labels: List<String>? = null
 )
-// ▲▲▲ 修正ここまで ▲▲▲
 
 class GithubRepository(
     private val api: GithubApiService,
@@ -23,7 +22,11 @@ class GithubRepository(
     private val authHeader = "token $token"
 
     suspend fun getIssues(): List<Issue> {
-        return api.getIssues(authHeader, owner, repo)
+        return api.getIssues(authHeader, owner, repo, state = "open")
+    }
+
+    suspend fun getClosedIssues(): List<Issue> {
+        return api.getIssues(authHeader, owner, repo, state = "closed")
     }
 
     suspend fun getLabels(): List<Label> {
@@ -31,15 +34,12 @@ class GithubRepository(
     }
 
     suspend fun closeIssue(number: Int) {
-        // stateだけ指定して更新
         api.updateIssue(authHeader, owner, repo, number, UpdateIssueRequest(state = "closed"))
     }
 
-    // ▼▼▼ 追加: ラベルのみを更新する関数 ▼▼▼
     suspend fun updateIssueLabels(number: Int, labels: List<String>) {
         api.updateIssue(authHeader, owner, repo, number, UpdateIssueRequest(labels = labels))
     }
-    // ▲▲▲ 追加ここまで ▲▲▲
 
     suspend fun createIssue(title: String, labels: List<String>): Issue {
         return api.createIssue(
@@ -79,5 +79,15 @@ class GithubRepository(
                 sha = currentFile.sha
             )
         )
+    }
+    suspend fun getReportFiles(): List<RepoContent> {
+        return api.getDirContents(authHeader, owner, repo, "reports")
+    }
+
+    suspend fun getFileContent(path: String): String {
+        val response = api.getFileContent(authHeader, owner, repo, path)
+        val raw = response.content ?: return ""
+        val clean = raw.replace("\n", "")
+        return String(Base64.decode(clean, Base64.DEFAULT), Charsets.UTF_8)
     }
 }

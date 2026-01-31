@@ -42,7 +42,7 @@ data class GithubFileResponse(
 data class UpdateFileRequest(
     val message: String,
     val content: String,
-    val sha: String
+    val sha: String? = null
 )
 
 @Serializable

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mobiletaskmanager.data.model.Issue
 import com.example.mobiletaskmanager.data.model.Label
+import com.example.mobiletaskmanager.data.model.RepoContent // 追加
 import com.example.mobiletaskmanager.data.repository.GithubRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,7 +13,10 @@ import kotlinx.coroutines.launch
 
 data class MainUiState(
     val issues: List<Issue> = emptyList(),
+    val closedIssues: List<Issue> = emptyList(), // 追加: 完了済みタスク
     val labels: List<Label> = emptyList(),
+    val reportFiles: List<RepoContent> = emptyList(), // 追加: レポートファイル一覧
+    val selectedReportContent: String? = null,        // 追加: 選択されたレポートの中身
     val statusMessage: String = "Loading...",
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false
@@ -47,8 +51,14 @@ class MainViewModel(
 
     private suspend fun fetchDataInternal() {
         try {
+            // 並列実行するのが理想ですが、簡易的に直列で記述します
             val labels = repository.getLabels()
             val issues = repository.getIssues()
+            // ※ ClosedIssuesやReportsは、画面を開いた時に取得する設計もアリですが、
+            // 今回はシンプルに一括取得します（通信量が増える点に注意）
+            // val closed = repository.getClosedIssues()
+            // val reports = repository.getReportFiles()
+            // ↑ 全てここで呼ぶと重いので、専用のロード関数を作ります
 
             _uiState.value = _uiState.value.copy(
                 labels = labels,
@@ -56,10 +66,40 @@ class MainViewModel(
                 statusMessage = "Active Tasks: ${issues.size}"
             )
         } catch (e: Exception) {
-            _uiState.value = _uiState.value.copy(
-                statusMessage = "Error: ${e.message}"
-            )
+            _uiState.value = _uiState.value.copy(statusMessage = "Error: ${e.message}")
         }
+    }
+
+    // ▼▼▼ 追加: レポート一覧のロード ▼▼▼
+    fun loadReports() {
+        viewModelScope.launch {
+            try {
+                val reports = repository.getReportFiles()
+                // 日付順などでソートしたい場合はここで (nameが "YYYY-MM-DD.md" なら名前降順で新しい順になる)
+                val sortedReports = reports.sortedByDescending { it.name }
+                _uiState.value = _uiState.value.copy(reportFiles = sortedReports)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(statusMessage = "Failed to load reports: ${e.message}")
+            }
+        }
+    }
+
+    // ▼▼▼ 追加: 特定のレポート内容のロード ▼▼▼
+    fun selectReport(path: String) {
+        viewModelScope.launch {
+            try {
+                _uiState.value = _uiState.value.copy(isLoading = true, selectedReportContent = null)
+                val content = repository.getFileContent(path)
+                _uiState.value = _uiState.value.copy(isLoading = false, selectedReportContent = content)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoading = false, statusMessage = "Failed to load content: ${e.message}")
+            }
+        }
+    }
+
+    // ▼▼▼ 追加: 選択解除（一覧に戻る） ▼▼▼
+    fun clearSelectedReport() {
+        _uiState.value = _uiState.value.copy(selectedReportContent = null)
     }
 
     fun closeIssue(issue: Issue) {
@@ -127,6 +167,24 @@ class MainViewModel(
                 _uiState.value = _uiState.value.copy(statusMessage = "Routine Added!")
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(statusMessage = "Error: ${e.message}")
+            }
+        }
+    }
+
+    fun loadClosedIssues() {
+        viewModelScope.launch {
+            try {
+                _uiState.value = _uiState.value.copy(isLoading = true)
+                val closed = repository.getClosedIssues()
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    closedIssues = closed
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    statusMessage = "Failed to load archive: ${e.message}"
+                )
             }
         }
     }

@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -18,15 +19,18 @@ import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.ui.GuidelineScreen
 import com.example.mobiletaskmanager.ui.MainUiState
 import com.example.mobiletaskmanager.ui.MainViewModel
+import com.example.mobiletaskmanager.ui.screens.ReportScreen
 import com.example.mobiletaskmanager.ui.screens.TaskScreen
 import com.example.mobiletaskmanager.ui.theme.*
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.Check // 追加
+import com.example.mobiletaskmanager.ui.screens.ArchiveScreen
 
-// Screen定義
 enum class Screen(val title: String, val icon: ImageVector) {
     Tasks("Tasks", Icons.Default.List),
+    Reports("Reports", Icons.Default.Description),
+    Archive("Archive", Icons.Default.Check),
     Guidelines("Guidelines", Icons.Default.Info)
-    // 将来的にここに Reports や Archive を追加します
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,6 +104,16 @@ fun AppNavigation(
                         onUpdateStatus = viewModel::updateIssueStatus,
                         onAddOneOff = viewModel::addOneOffTask,
                         onAddRoutine = viewModel::addRoutineTask
+                    )
+                    Screen.Reports -> ReportScreen(
+                        uiState = uiState,
+                        onLoadReports = viewModel::loadReports,
+                        onSelectReport = viewModel::selectReport,
+                        onBackToList = viewModel::clearSelectedReport
+                    )
+                    Screen.Archive -> ArchiveScreen(
+                        uiState = uiState,
+                        onLoadArchive = viewModel::loadClosedIssues
                     )
                     Screen.Guidelines -> GuidelineScreen()
                 }

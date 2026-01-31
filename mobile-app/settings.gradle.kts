@@ -16,8 +16,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url = uri("https://jitpack.io") }
     }
 }
 
-rootProject.name = "Mobile Task Manager"
+rootProject.name = "GitHub Task Manager"
 include(":app")
