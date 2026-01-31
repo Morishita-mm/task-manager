@@ -14,7 +14,8 @@ data class MainUiState(
     val issues: List<Issue> = emptyList(),
     val labels: List<Label> = emptyList(),
     val statusMessage: String = "Loading...",
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false
 )
 
 class MainViewModel(
@@ -30,23 +31,34 @@ class MainViewModel(
 
     private fun loadData() {
         viewModelScope.launch {
-            try {
-                _uiState.value = _uiState.value.copy(isLoading = true)
-                val labels = repository.getLabels()
-                val issues = repository.getIssues()
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            fetchDataInternal()
+            _uiState.value = _uiState.value.copy(isLoading = false)
+        }
+    }
 
-                _uiState.value = _uiState.value.copy(
-                    labels = labels,
-                    issues = issues,
-                    statusMessage = "Active Tasks: ${issues.size}",
-                    isLoading = false
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    statusMessage = "Error: ${e.message}",
-                    isLoading = false
-                )
-            }
+    fun refresh() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isRefreshing = true)
+            fetchDataInternal()
+            _uiState.value = _uiState.value.copy(isRefreshing = false)
+        }
+    }
+
+    private suspend fun fetchDataInternal() {
+        try {
+            val labels = repository.getLabels()
+            val issues = repository.getIssues()
+
+            _uiState.value = _uiState.value.copy(
+                labels = labels,
+                issues = issues,
+                statusMessage = "Active Tasks: ${issues.size}"
+            )
+        } catch (e: Exception) {
+            _uiState.value = _uiState.value.copy(
+                statusMessage = "Error: ${e.message}"
+            )
         }
     }
 
@@ -62,7 +74,7 @@ class MainViewModel(
                     statusMessage = "Active Tasks: ${_uiState.value.issues.size}"
                 )
             } catch (e: Exception) {
-                loadData()
+                refresh()
             }
         }
     }
@@ -70,27 +82,16 @@ class MainViewModel(
     fun addOneOffTask(title: String, selectedLabels: List<Label>) {
         viewModelScope.launch {
             try {
-                // UIローディング開始（任意）
-                // _uiState.value = _uiState.value.copy(isLoading = true)
-
                 val labelNames = selectedLabels.map { it.name } + "mobile-entry"
-
-                // 1. 作成されたタスクを受け取る
                 val newIssue = repository.createIssue(title, labelNames)
 
-                // 2. 現在のリストの先頭に追加して画面更新
                 val currentList = _uiState.value.issues
                 _uiState.value = _uiState.value.copy(
                     issues = listOf(newIssue) + currentList,
-                    statusMessage = "Active Tasks: ${currentList.size + 1}",
-                    isLoading = false
+                    statusMessage = "Active Tasks: ${currentList.size + 1}"
                 )
-
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    statusMessage = "Error: ${e.message}",
-                    isLoading = false
-                )
+                _uiState.value = _uiState.value.copy(statusMessage = "Error: ${e.message}")
             }
         }
     }

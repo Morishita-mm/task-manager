@@ -18,6 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox // ▼ 追加
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState // ▼ 追加
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,7 +48,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. 依存関係の構築 (本来は Hilt などの DI コンテナで行う作業)
+        // 1. DI (手動)
         val contentType = "application/json".toMediaType()
         val retrofit = Retrofit.Builder()
             .baseUrl("https://api.github.com/")
@@ -61,7 +63,6 @@ class MainActivity : ComponentActivity() {
             repo = BuildConfig.GITHUB_REPO
         )
 
-        // ViewModel Factory の作成 (引数付き ViewModel のため必要)
         val viewModelFactory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 @Suppress("UNCHECKED_CAST")
@@ -70,16 +71,13 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            // 2. ViewModel の取得
             val viewModel: MainViewModel = viewModel(factory = viewModelFactory)
-
-            // 3. StateFlow を Compose の State として監視
             val uiState by viewModel.uiState.collectAsState()
 
-            // 4. UI の描画
             TaskScreen(
                 uiState = uiState,
                 onCloseTask = viewModel::closeIssue,
+                onRefresh = viewModel::refresh, // ▼ 追加
                 onAddOneOff = viewModel::addOneOffTask,
                 onAddRoutine = viewModel::addRoutineTask
             )
@@ -94,12 +92,15 @@ class MainActivity : ComponentActivity() {
 fun TaskScreen(
     uiState: MainUiState,
     onCloseTask: (Issue) -> Unit,
+    onRefresh: () -> Unit, // ▼ 追加
     onAddOneOff: (String, List<Label>) -> Unit,
     onAddRoutine: (String, String, List<Label>) -> Unit
 ) {
     var showBottomSheet by remember { mutableStateOf(false) }
-    // シートの高さを安定させる設定
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // PullToRefreshの状態管理
+    val pullToRefreshState = rememberPullToRefreshState()
 
     Scaffold(
         floatingActionButton = {
@@ -119,18 +120,27 @@ fun TaskScreen(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // ローディングインジケータ (簡易実装)
+            // 初回ロード用インジケータ
             if (uiState.isLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            LazyColumn {
-                items(uiState.issues) { issue ->
-                    TaskRow(issue = issue, onClose = { onCloseTask(it) })
-                    Divider()
+            // ▼▼▼ 追加: PullToRefreshBoxでリストを囲む ▼▼▼
+            PullToRefreshBox(
+                isRefreshing = uiState.isRefreshing,
+                onRefresh = onRefresh,
+                state = pullToRefreshState,
+                modifier = Modifier.weight(1f) // 残りの領域を埋める
+            ) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(uiState.issues) { issue ->
+                        TaskRow(issue = issue, onClose = { onCloseTask(it) })
+                        Divider()
+                    }
                 }
             }
+            // ▲▲▲ 追加ここまで ▲▲▲
         }
 
         if (showBottomSheet) {
@@ -143,7 +153,6 @@ fun TaskScreen(
                     onCancel = { showBottomSheet = false },
                     onSubmit = { title, isRoutine, selectedDays, selectedLabels ->
                         if (isRoutine) {
-                            // 曜日リストを YAML 形式の文字列に変換
                             val schedule = if (selectedDays.size == 7) "daily" else {
                                 val daysStr = selectedDays.joinToString(",") {
                                     it.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).lowercase()
