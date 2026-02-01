@@ -105,12 +105,14 @@ fun AppNavigation(
                 when (currentScreen) {
                     Screen.Tasks -> TaskScreen(
                         uiState = uiState,
-                        viewModel = viewModel,
-                        onCloseTask = viewModel::closeIssue,
                         onRefresh = viewModel::refresh,
+                        onCloseIssue = viewModel::closeIssue,
                         onUpdateStatus = viewModel::updateIssueStatus,
                         onAddOneOff = viewModel::addOneOffTask,
-                        onAddRoutine = viewModel::addRoutineTask
+                        onAddRoutine = viewModel::addRoutineTask,
+                        onAddNote = viewModel::addNote,
+                        onSetTaskFilter = viewModel::setTaskFilter,
+                        onSetTaskSort = viewModel::setTaskSort
                     )
                     Screen.Notes -> NoteScreen(
                         uiState = uiState,

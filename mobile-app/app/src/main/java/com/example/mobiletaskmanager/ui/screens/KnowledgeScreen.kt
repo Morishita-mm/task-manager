@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,7 +23,10 @@ import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.data.model.RepoContent
 import com.example.mobiletaskmanager.ui.MainUiState
 import com.example.mobiletaskmanager.ui.theme.*
+import kotlinx.coroutines.delay // 追加
+import kotlinx.coroutines.launch // 追加
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KnowledgeScreen(
     uiState: MainUiState,
@@ -49,6 +54,11 @@ fun KnowledgeScreen(
         )
     } else {
         // 一覧モード
+        // ▼▼▼ 追加: ローカル状態管理 ▼▼▼
+        var isRefreshing by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
+        val pullToRefreshState = rememberPullToRefreshState()
+
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
@@ -66,19 +76,33 @@ fun KnowledgeScreen(
                 }
                 HorizontalDivider(color = DividerColor)
 
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(uiState.knowledgeFiles) { file ->
-                        KnowledgeRow(file = file, onClick = { onSelect(file) })
-                        HorizontalDivider(color = DividerColor, thickness = 0.5.dp)
-                    }
-                    // ファイルがない場合の表示
-                    if (uiState.knowledgeFiles.isEmpty() && !uiState.isLoading) {
-                        item {
-                            Text(
-                                "No knowledge files yet.",
-                                modifier = Modifier.padding(16.dp),
-                                color = TextSecondary
-                            )
+                // ▼▼▼ 修正: ローカル isRefreshing と weight(1f) を使用 ▼▼▼
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing, // ここをisLoadingではなくisRefreshingに変更
+                    onRefresh = {
+                        isRefreshing = true
+                        onLoad()
+                        scope.launch {
+                            delay(1000)
+                            isRefreshing = false
+                        }
+                    },
+                    state = pullToRefreshState,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(uiState.knowledgeFiles) { file ->
+                            KnowledgeRow(file = file, onClick = { onSelect(file) })
+                            HorizontalDivider(color = DividerColor, thickness = 0.5.dp)
+                        }
+                        if (uiState.knowledgeFiles.isEmpty() && !uiState.isLoading) {
+                            item {
+                                Text(
+                                    "No knowledge files yet.",
+                                    modifier = Modifier.padding(16.dp),
+                                    color = TextSecondary
+                                )
+                            }
                         }
                     }
                 }
@@ -100,6 +124,7 @@ fun KnowledgeScreen(
     }
 }
 
+// ... KnowledgeRow, KnowledgeEditor は変更なし ...
 @Composable
 fun KnowledgeRow(file: RepoContent, onClick: () -> Unit) {
     Row(
@@ -154,12 +179,10 @@ fun KnowledgeEditor(
                     modifier = Modifier.weight(1f)
                 )
                 if (isLoading) {
-                    // ロード中はインジケーターを表示
                     Box(modifier = Modifier.padding(12.dp).size(24.dp)) {
                         CircularProgressIndicator(strokeWidth = 2.dp, color = PrimaryAccent)
                     }
                 } else {
-                    // 通常時は保存ボタン
                     IconButton(onClick = { onSave(name, content) }) {
                         Icon(Icons.Default.Save, contentDescription = "Save", tint = PrimaryAccent)
                     }
@@ -168,19 +191,15 @@ fun KnowledgeEditor(
         }
 
         Column(modifier = Modifier.padding(16.dp)) {
-            // ファイル名入力 (新規作成時のみ編集可能、または既存なら表示のみ)
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 label = { Text("Filename (e.g. docker-commands.md)") },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = isNewFile, // 既存ファイルの名前変更は今回はサポート外（複雑になるため）
+                enabled = isNewFile,
                 singleLine = true
             )
-
             Spacer(modifier = Modifier.height(16.dp))
-
-            // 本文エディタ
             OutlinedTextField(
                 value = content,
                 onValueChange = { content = it },
@@ -188,7 +207,6 @@ fun KnowledgeEditor(
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f),
-                // 上寄せにするための設定
                 textStyle = LocalTextStyle.current.copy(lineHeight = 24.sp)            )
         }
     }

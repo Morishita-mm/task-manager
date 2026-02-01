@@ -25,6 +25,8 @@ import com.example.mobiletaskmanager.ui.MainViewModel
 import com.example.mobiletaskmanager.ui.components.*
 import com.example.mobiletaskmanager.ui.theme.*
 import dev.jeziellago.compose.markdowntext.MarkdownText
+import kotlinx.coroutines.delay // 追加
+import kotlinx.coroutines.launch // 追加
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,13 +40,16 @@ fun ReportScreen(
     var showFilterSheet by remember { mutableStateOf(false) }
     var showSortSheet by remember { mutableStateOf(false) }
 
+    // ▼▼▼ 追加: ローカルでのリフレッシュ状態管理 ▼▼▼
+    var isRefreshing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val pullToRefreshState = rememberPullToRefreshState()
+
     LaunchedEffect(Unit) {
         if (uiState.filteredReports.isEmpty()) {
             onLoadReports()
         }
     }
-
-    val pullToRefreshState = rememberPullToRefreshState()
 
     Column(
         modifier = Modifier
@@ -57,7 +62,7 @@ fun ReportScreen(
                 onBack = onBackToList
             )
         } else {
-            // Header Row (Daily Reports + Buttons)
+            // Header Row
             Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier
@@ -83,13 +88,21 @@ fun ReportScreen(
 
             HorizontalDivider(color = DividerColor)
 
+            // ▼▼▼ 修正: ローカルの isRefreshing を使用 ▼▼▼
             PullToRefreshBox(
-                isRefreshing = uiState.isRefreshing,
-                onRefresh = onLoadReports,
+                isRefreshing = isRefreshing, // UI側で制御する変数に変更
+                onRefresh = {
+                    isRefreshing = true
+                    onLoadReports()
+                    // 確実にアニメーションを終了させるために遅延後にフラグを戻す
+                    scope.launch {
+                        delay(1000)
+                        isRefreshing = false
+                    }
+                },
                 state = pullToRefreshState,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.weight(1f)
             ) {
-                // タイトルをヘッダーに移したので、リストからは削除
                 ReportListView(
                     reports = uiState.filteredReports,
                     onSelect = { report -> onSelectReport(report.path) }
@@ -115,6 +128,7 @@ fun ReportScreen(
     }
 }
 
+// ... ReportListView, ReportDetailView はそのまま ...
 @Composable
 fun ReportListView(
     reports: List<RepoContent>,
