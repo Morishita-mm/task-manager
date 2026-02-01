@@ -12,6 +12,8 @@ interface GithubApiService {
         @Path("owner") owner: String,
         @Path("repo") repo: String,
         @Query("state") state: String = "open",
+        @Query("labels") labels: String? = null,
+        @Query("since") since: String? = null,
         @Query("per_page") perPage: Int = 100
     ): List<Issue>
 

@@ -12,10 +12,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 data class MainUiState(
     // フィルタリング適用後のデータ
-    val filteredIssues: List<Issue> = emptyList(),
+    val filteredIssues: List<Issue> = emptyList(), // 通常のタスク (type:note 除外)
+    val notes: List<Issue> = emptyList(),          // 追加: マイクロブログ (type:note のみ)
     val filteredClosedIssues: List<Issue> = emptyList(),
     val filteredReports: List<RepoContent> = emptyList(),
 
@@ -43,6 +46,7 @@ class MainViewModel(
 
     // 生データ保持用
     private var _rawIssues: List<Issue> = emptyList()
+    private var _rawNotes: List<Issue> = emptyList()
     private var _rawClosedIssues: List<Issue> = emptyList()
     private var _rawReports: List<RepoContent> = emptyList()
 
@@ -79,11 +83,15 @@ class MainViewModel(
             val labels = repository.getLabels()
             val issues = repository.getIssues()
 
+            val threeDaysAgo = Instant.now().minus(3, ChronoUnit.DAYS).toString()
+            val notes = repository.getNotes(since = threeDaysAgo)
+
             _rawIssues = issues // 生データを保存
+            _rawNotes = notes
 
             _uiState.value = _uiState.value.copy(
                 labels = labels,
-                statusMessage = "Active Tasks: ${issues.size}"
+                statusMessage = "Active Tasks: ${issues.filter { it.labels.none { l -> l.name == "type:note" } }.size}"
             )
             applyFilters() // フィルタ適用
         } catch (e: Exception) {
@@ -95,7 +103,10 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 _uiState.value = _uiState.value.copy(isLoading = true)
-                val closed = repository.getClosedIssues()
+
+                val oneWeekAgo = Instant.now().minus(7, ChronoUnit.DAYS).toString()
+                val closed = repository.getClosedIssues(since = oneWeekAgo)
+
                 _rawClosedIssues = closed
                 _uiState.value = _uiState.value.copy(isLoading = false)
                 applyFilters()
@@ -123,8 +134,15 @@ class MainViewModel(
     // --- フィルタ適用ロジック ---
 
     private fun applyFilters() {
+        val tasksOnly = _rawIssues.filter { issue ->
+            issue.labels.none { it.name == "type:note" }
+        }
+
+        val notesOnly = _rawNotes.sortedByDescending { it.createdAt }
+
         _uiState.value = _uiState.value.copy(
-            filteredIssues = filterAndSortTasks(_rawIssues, _taskFilter.value, _taskSort.value),
+            filteredIssues = filterAndSortTasks(tasksOnly, _taskFilter.value, _taskSort.value),
+            notes = notesOnly,
             filteredClosedIssues = filterAndSortTasks(_rawClosedIssues, _archiveFilter.value, _archiveSort.value),
             filteredReports = filterAndSortReports(_rawReports, _reportFilterQuery.value, _reportSort.value),
 
@@ -230,14 +248,32 @@ class MainViewModel(
         _uiState.value = _uiState.value.copy(selectedReportContent = null)
     }
 
+    // --- ノート (Microblog) 投稿用メソッド ---
+    fun addNote(content: String) {
+        viewModelScope.launch {
+            try {
+                // "type:note" ラベルを付けて作成
+                // "mobile-entry" も付けておくと、スマホから書いたことがわかります
+                val labels = listOf("type:note", "mobile-entry")
+                repository.createIssue(title = content, labels = labels)
+                refresh() // リスト更新
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(statusMessage = "Failed to post note: ${e.message}")
+            }
+        }
+    }
+
     // --- 既存のタスク操作メソッド ---
 
     fun closeIssue(issue: Issue) {
         viewModelScope.launch {
             try {
                 // UI上での楽観的更新 (filteredリストからも消す)
+                // Note画面で閉じた場合も考慮して、Task/Note両方の更新ロジックが走るrefresh()に任せるのが安全ですが、
+                // タスク一覧での操作感を優先してフィルタ済みリストから削除します
                 _uiState.value = _uiState.value.copy(
-                    filteredIssues = _uiState.value.filteredIssues.filter { it.number != issue.number }
+                    filteredIssues = _uiState.value.filteredIssues.filter { it.number != issue.number },
+                    notes = _uiState.value.notes.filter { it.number != issue.number }
                 )
 
                 repository.closeIssue(issue.number)

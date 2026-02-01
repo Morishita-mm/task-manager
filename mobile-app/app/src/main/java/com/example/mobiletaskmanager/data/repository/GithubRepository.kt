@@ -25,8 +25,17 @@ class GithubRepository(
         return api.getIssues(authHeader, owner, repo, state = "open")
     }
 
-    suspend fun getClosedIssues(): List<Issue> {
-        return api.getIssues(authHeader, owner, repo, state = "closed")
+    suspend fun getNotes(since: String): List<Issue> {
+        return api.getIssues(
+            authHeader, owner, repo,
+            state = "all",
+            labels = "type:note",
+            since = since
+        )
+    }
+
+    suspend fun getClosedIssues(since: String? = null): List<Issue> {
+        return api.getIssues(authHeader, owner, repo, state = "closed", since = since)
     }
 
     suspend fun getLabels(): List<Label> {
