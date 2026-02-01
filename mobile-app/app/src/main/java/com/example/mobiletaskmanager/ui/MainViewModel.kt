@@ -1,5 +1,6 @@
 package com.example.mobiletaskmanager.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mobiletaskmanager.data.model.Issue
@@ -17,10 +18,12 @@ import java.time.temporal.ChronoUnit
 
 data class MainUiState(
     // フィルタリング適用後のデータ
-    val filteredIssues: List<Issue> = emptyList(), // 通常のタスク (type:note 除外)
-    val notes: List<Issue> = emptyList(),          // 追加: マイクロブログ (type:note のみ)
+    val filteredIssues: List<Issue> = emptyList(),
+    val notes: List<Issue> = emptyList(),
     val filteredClosedIssues: List<Issue> = emptyList(),
     val filteredReports: List<RepoContent> = emptyList(),
+    val knowledgeFiles: List<RepoContent> = emptyList(),
+    val editingKnowledge: EditingKnowledge? = null,
 
     val labels: List<Label> = emptyList(),
     val statusMessage: String = "Loading...",
@@ -35,6 +38,12 @@ data class MainUiState(
     val archiveSortOption: SortOption = SortOption.CREATED_DESC,
     val reportFilterQuery: String = "",
     val reportSortOption: SortOption = SortOption.NAME_DESC
+)
+
+data class EditingKnowledge(
+    val name: String = "",
+    val content: String = "",
+    val sha: String? = null
 )
 
 class MainViewModel(
@@ -131,8 +140,93 @@ class MainViewModel(
         }
     }
 
-    // --- フィルタ適用ロジック ---
+    fun loadKnowledgeFiles() {
+        viewModelScope.launch {
+            try {
+                // ローディングは全体のisLoadingを使ってもいいですが、
+                // 画面遷移時のチラつき防止のため静かにロードしてもOK
+                val files = repository.getKnowledgeFiles()
+                // mdファイルのみ、名前順
+                val filtered = files
+                    .filter { it.name.endsWith(".md") }
+                    .sortedBy { it.name }
 
+                _uiState.value = _uiState.value.copy(knowledgeFiles = filtered)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(statusMessage = "Failed to load knowledge: ${e.message}")
+            }
+        }
+    }
+
+    // ファイルを選択して読み込む (編集開始)
+    fun selectKnowledge(file: RepoContent) {
+        viewModelScope.launch {
+            try {
+                _uiState.value = _uiState.value.copy(isLoading = true)
+                // ファイルの中身を取得
+                val content = repository.getFileContent(file.path)
+
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    editingKnowledge = EditingKnowledge(
+                        name = file.name,
+                        content = content,
+                        sha = file.sha
+                    )
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    statusMessage = "Error loading file: ${e.message}"
+                )
+            }
+        }
+    }
+
+    // 新規作成モードに入る
+    fun startCreateKnowledge() {
+        _uiState.value = _uiState.value.copy(
+            editingKnowledge = EditingKnowledge(name = "", content = "", sha = null)
+        )
+    }
+
+    // 編集キャンセル
+    fun closeEditor() {
+        _uiState.value = _uiState.value.copy(editingKnowledge = null)
+    }
+
+    // 保存実行
+    fun saveKnowledge(name: String, content: String) {
+        val currentEditing = _uiState.value.editingKnowledge ?: return
+
+        val safeName = if (name.endsWith(".md")) name else "$name.md"
+        Log.d("TaskApp", "Save requested: $safeName") // ログ追加
+
+        viewModelScope.launch {
+            try {
+                _uiState.value = _uiState.value.copy(isLoading = true)
+                Log.d("TaskApp", "Calling repository...") // ログ追加
+
+                repository.saveKnowledgeFile(safeName, content, currentEditing.sha)
+
+                Log.d("TaskApp", "Save success!") // ログ追加
+
+                loadKnowledgeFiles()
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    editingKnowledge = null,
+                    statusMessage = "Saved: $safeName"
+                )
+            } catch (e: Exception) {
+                Log.e("TaskApp", "Save failed", e) // エラーログ追加
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    statusMessage = "Failed to save: ${e.message}"
+                )
+            }
+        }
+    }
+    // --- フィルタ適用ロジック ---
     private fun applyFilters() {
         val tasksOnly = _rawIssues.filter { issue ->
             issue.labels.none { it.name == "type:note" }

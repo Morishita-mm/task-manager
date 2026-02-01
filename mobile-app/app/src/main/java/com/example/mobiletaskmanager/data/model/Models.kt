@@ -52,3 +52,9 @@ data class UpdateFileRequest(
 data class UpdateFileResponse(
     val content: GithubFileResponse? = null
 )
+
+@Serializable
+data class CreateFileRequest(
+    val message: String,
+    val content: String
+)

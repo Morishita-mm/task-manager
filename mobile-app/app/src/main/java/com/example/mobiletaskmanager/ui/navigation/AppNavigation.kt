@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Menu
@@ -22,6 +23,7 @@ import com.example.mobiletaskmanager.ui.GuidelineScreen
 import com.example.mobiletaskmanager.ui.MainUiState
 import com.example.mobiletaskmanager.ui.MainViewModel
 import com.example.mobiletaskmanager.ui.screens.ArchiveScreen
+import com.example.mobiletaskmanager.ui.screens.KnowledgeScreen
 import com.example.mobiletaskmanager.ui.screens.NoteScreen
 import com.example.mobiletaskmanager.ui.screens.ReportScreen
 import com.example.mobiletaskmanager.ui.screens.TaskScreen
@@ -32,6 +34,7 @@ enum class Screen(val title: String, val icon: ImageVector) {
     Tasks("Tasks", Icons.Default.List),
     Notes("Notes", Icons.Default.Edit),
     Reports("Reports", Icons.Default.Description),
+    Knowledge("Knowledge", Icons.Default.EditNote),
     Archive("Archive", Icons.Default.Check),
     Guidelines("Guidelines", Icons.Default.Info)
 }
@@ -120,6 +123,14 @@ fun AppNavigation(
                         onLoadReports = viewModel::loadReports,
                         onSelectReport = viewModel::selectReport,
                         onBackToList = viewModel::clearSelectedReport
+                    )
+                    Screen.Knowledge -> KnowledgeScreen(
+                        uiState = uiState,
+                        onLoad = viewModel::loadKnowledgeFiles,
+                        onSelect = viewModel::selectKnowledge,
+                        onCreate = viewModel::startCreateKnowledge,
+                        onCloseEditor = viewModel::closeEditor,
+                        onSave = viewModel::saveKnowledge
                     )
                     Screen.Archive -> ArchiveScreen(
                         uiState = uiState,

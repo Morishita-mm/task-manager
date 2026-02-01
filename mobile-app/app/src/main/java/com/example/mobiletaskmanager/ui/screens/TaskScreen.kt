@@ -58,7 +58,7 @@ fun TaskScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = uiState.statusMessage,
+                        text = "Active Tasks: ${uiState.filteredIssues.size}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary

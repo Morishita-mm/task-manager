@@ -5,7 +5,6 @@ import com.example.mobiletaskmanager.data.repository.UpdateIssueRequest
 import retrofit2.http.*
 
 interface GithubApiService {
-    // ▼▼▼ 修正: stateパラメータを追加 (デフォルトは "open") ▼▼▼
     @GET("repos/{owner}/{repo}/issues")
     suspend fun getIssues(
         @Header("Authorization") auth: String,
@@ -50,16 +49,6 @@ interface GithubApiService {
         @Path("path") path: String
     ): FileContentResponse
 
-    @PUT("repos/{owner}/{repo}/contents/{path}")
-    suspend fun updateFileContent(
-        @Header("Authorization") auth: String,
-        @Path("owner") owner: String,
-        @Path("repo") repo: String,
-        @Path("path") path: String,
-        @Body body: UpdateFileRequest
-    )
-
-    // ▼▼▼ 追加: ディレクトリ内のファイル一覧取得 ▼▼▼
     @GET("repos/{owner}/{repo}/contents/{path}")
     suspend fun getDirContents(
         @Header("Authorization") auth: String,
@@ -67,4 +56,22 @@ interface GithubApiService {
         @Path("repo") repo: String,
         @Path("path") path: String
     ): List<RepoContent>
+
+    @PUT("repos/{owner}/{repo}/contents/{path}")
+    suspend fun createFileContent(
+        @Header("Authorization") auth: String,
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("path") path: String,
+        @Body body: CreateFileRequest
+    ): FileUpdateResponse
+
+    @PUT("repos/{owner}/{repo}/contents/{path}")
+    suspend fun updateFileContent(
+        @Header("Authorization") auth: String,
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("path") path: String,
+        @Body body: UpdateFileRequest
+    ): FileUpdateResponse
 }

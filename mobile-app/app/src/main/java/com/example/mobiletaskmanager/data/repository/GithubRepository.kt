@@ -99,4 +99,38 @@ class GithubRepository(
         val clean = raw.replace("\n", "")
         return String(Base64.decode(clean, Base64.DEFAULT), Charsets.UTF_8)
     }
+
+    suspend fun getKnowledgeFiles(): List<RepoContent> {
+        return try {
+            api.getDirContents(authHeader, owner, repo, "knowledge")
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun saveKnowledgeFile(filename: String, content: String, sha: String? = null) {
+        val encodedContent = Base64.encodeToString(content.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        val path = "knowledge/$filename"
+
+        if (sha == null) {
+            val message = "Create knowledge: $filename"
+
+            val request = CreateFileRequest(
+                message = message,
+                content = encodedContent
+            )
+
+            api.createFileContent(authHeader, owner, repo, path, request)
+        } else {
+            val message = "Update knowledge: $filename"
+
+            val request = UpdateFileRequest(
+                message = message,
+                content = encodedContent,
+                sha = sha
+            )
+
+            api.updateFileContent(authHeader, owner, repo, path, request)
+        }
+    }
 }
