@@ -4,9 +4,9 @@ use chrono::{Datelike, Duration, Local, Utc, Weekday};
 use dotenv::dotenv;
 use reqwest::header;
 use serde::{Deserialize, Serialize};
-use serde_json::json; // json! マクロを使用するために追加
+use serde_json::json;
 use std::env;
-use std::fmt::Write as FmtWrite; // Stringへの書き込み用
+use std::fmt::Write as FmtWrite;
 use std::collections::HashMap;
 use regex::Regex;
 
@@ -45,7 +45,7 @@ struct IssueResponse {
     title: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct Issue {
     number: u32,
     title: String,
@@ -53,13 +53,12 @@ struct Issue {
     state: String,
     created_at: chrono::DateTime<chrono::Utc>,
     closed_at: Option<chrono::DateTime<chrono::Utc>>,
-    #[allow(dead_code)]
     labels: Vec<Label>,
+    body: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct Label {
-    #[allow(dead_code)]
     name: String,
 }
 
@@ -205,37 +204,50 @@ fn run_cleanup_job(ctx: &GithubContext) -> Result<()> {
     Ok(())
 }
 
-/// メインのレポートジョブ：各工程を呼び出すオーケストレーター
+// ▼▼▼ Report Job Logic (Enhanced) ▼▼▼
+
 fn run_report_job(ctx: &GithubContext) -> Result<()> {
+    let today_str = Local::now().format("%Y-%m-%d").to_string();
+    println!("Generating report for: {}", today_str);
+
     // 1. 今日の完了タスクを取得
-    let issues = fetch_todays_closed_issues(ctx)?;
+    let tasks = fetch_todays_closed_issues(ctx)?;
     
-    if issues.is_empty() {
-        let today_str = Local::now().format("%Y-%m-%d").to_string();
-        println!("No tasks completed today ({}).", today_str);
+    // 2. 今日のつぶやき (Notes) を取得
+    let notes = fetch_todays_open_notes(ctx)?;
+
+    if tasks.is_empty() && notes.is_empty() {
+        println!("No tasks or notes found for today.");
         return Ok(());
     }
 
-    // 2. リッチなMarkdownコンテンツを生成
-    let today_str = Local::now().format("%Y-%m-%d").to_string();
-    let content = generate_rich_report_content(&today_str, &issues);
+    // 3. リッチなMarkdownコンテンツを生成 (Tasks + Notes)
+    let content = generate_rich_report_content(&today_str, &tasks, &notes);
 
-    // 3. GitHubへアップロード
+    // 4. GitHubへアップロード
     let file_path = format!("reports/{}.md", today_str);
     let message = format!("Add daily report: {}", today_str);
     
     upload_file_to_github(ctx, &file_path, &content, &message)?;
-    
     println!("Report generated and pushed to: {}", file_path);
+
+    // 5. 日報化したNoteをCloseする (クリーンアップ)
+    if !notes.is_empty() {
+        println!("Closing {} notes...", notes.len());
+        for note in notes {
+            close_issue(ctx, note.number)?;
+        }
+    }
+
     Ok(())
 }
 
-/// 工程1: 今日の完了タスクを取得・フィルタリングする
+/// Task取得 (Closed)
 fn fetch_todays_closed_issues(ctx: &GithubContext) -> Result<Vec<Issue>> {
-    // 直近24時間のIssueを取得 (タイムゾーンのズレを考慮して少し広めに取る)
     let since_utc = Utc::now() - Duration::hours(30);
     let since_str = since_utc.format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
+    // 完了タスクのみ
     let url = format!(
         "https://api.github.com/repos/{}/{}/issues?state=closed&since={}&per_page=100",
         ctx.owner, ctx.repo, since_str
@@ -247,58 +259,70 @@ fn fetch_todays_closed_issues(ctx: &GithubContext) -> Result<Vec<Issue>> {
     let local_now = Local::now();
     let today_str = local_now.format("%Y-%m-%d").to_string();
 
-    // 実際に「現地時間の今日」に完了したものをフィルタリング
+    // Noteを除外して、今日完了したものだけ抽出
     let closed_today: Vec<Issue> = issues
         .into_iter()
-        .filter(|i| match i.closed_at {
-            Some(dt) => {
-                let local_dt = dt.with_timezone(&Local);
-                local_dt.format("%Y-%m-%d").to_string() == today_str
+        .filter(|i| {
+            // type:note は除外 (Noteは別枠で処理するため)
+            let is_note = i.labels.iter().any(|l| l.name == "type:note");
+            if is_note { return false; }
+
+            match i.closed_at {
+                Some(dt) => {
+                    let local_dt = dt.with_timezone(&Local);
+                    local_dt.format("%Y-%m-%d").to_string() == today_str
+                }
+                None => false,
             }
-            None => false,
         })
         .collect();
     
     Ok(closed_today)
 }
 
-/// 工程2: 集計を行ってMarkdownテキストを生成する
-fn generate_rich_report_content(date: &str, issues: &[Issue]) -> String {
+/// Note取得 (Open, type:note)
+fn fetch_todays_open_notes(ctx: &GithubContext) -> Result<Vec<Issue>> {
+    // OpenなNoteを取得 (溜まっているものも含めて回収する運用にするため、sinceは一旦指定しないか、今日作成分にするか)
+    // ここでは「今日作成されたNote」を対象にします。
+    
+    let since_utc = Utc::now() - Duration::hours(24);
+    let since_str = since_utc.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/issues?state=open&labels=type:note&since={}&per_page=100",
+        ctx.owner, ctx.repo, since_str
+    );
+
+    let resp = ctx.client.get(&url).send()?;
+    let issues: Vec<Issue> = resp.json()?;
+
+    Ok(issues)
+}
+
+/// Markdown生成 (Tasks + Notes)
+fn generate_rich_report_content(date: &str, tasks: &[Issue], notes: &[Issue]) -> String {
     let mut md = String::new();
     
-    // --- 集計処理 ---
-    let total_tasks = issues.len();
+    // --- 集計処理 (Tasks) ---
+    let total_tasks = tasks.len();
     let mut total_minutes = 0;
     let mut category_map: HashMap<String, Vec<&Issue>> = HashMap::new();
     let mut highlights: Vec<&Issue> = Vec::new();
-
-    // 表示順序の定義
     let context_order = vec!["Work", "Dev", "Study", "Life", "Health", "Other"];
 
-    for issue in issues {
-        // 時間集計 (t:XXm)
+    for issue in tasks {
         total_minutes += parse_time_from_labels(&issue.labels);
-
-        // カテゴリ分け (c:Context)
         let category = parse_context_from_labels(&issue.labels).unwrap_or("Other".to_string());
         category_map.entry(category).or_default().push(issue);
 
-        // ハイライト判定 (p:critical, p:high)
         if issue.labels.iter().any(|l| l.name == "p:critical" || l.name == "p:high") {
             highlights.push(issue);
         }
     }
 
-    // 時間フォーマット
     let hours = total_minutes / 60;
     let mins = total_minutes % 60;
-    let time_str = if hours > 0 {
-        format!("{}h {}m", hours, mins)
-    } else {
-        format!("{}m", mins)
-    };
-
-    // フォーカスエリア (最多タスクのカテゴリ)
+    let time_str = format!("{}h {}m", hours, mins);
     let focus_area = category_map.iter()
         .max_by_key(|entry| entry.1.len())
         .map(|(k, _)| k.as_str())
@@ -307,13 +331,16 @@ fn generate_rich_report_content(date: &str, issues: &[Issue]) -> String {
     // --- Markdown構築 ---
     let _ = writeln!(md, "# 📅 Daily Report: {}", date);
     let _ = writeln!(md, "");
+    
+    // Summary
     let _ = writeln!(md, "> **Summary**");
     let _ = writeln!(md, "> ✅ Completed: **{} tasks**", total_tasks);
+    let _ = writeln!(md, "> 📝 Notes: **{} posts**", notes.len()); // 追加
     let _ = writeln!(md, "> ⏱️ Est. Time: **{}**", time_str);
     let _ = writeln!(md, "> 🏆 Focus: **{}**", focus_area);
     let _ = writeln!(md, "");
 
-    // ハイライト
+    // Highlights
     if !highlights.is_empty() {
         let _ = writeln!(md, "## 🔥 Highlights");
         for issue in &highlights {
@@ -322,7 +349,7 @@ fn generate_rich_report_content(date: &str, issues: &[Issue]) -> String {
         let _ = writeln!(md, "");
     }
 
-    // カテゴリ別表示 (順序指定)
+    // Tasks by Category
     for ctx in &context_order {
         if let Some(items) = category_map.get(*ctx) {
             let icon = match *ctx {
@@ -336,8 +363,7 @@ fn generate_rich_report_content(date: &str, issues: &[Issue]) -> String {
             let _ = writeln!(md, "");
         }
     }
-
-    // 定義順以外の残りカテゴリ
+    // Other Categories
     for (ctx, items) in &category_map {
         if !context_order.contains(&ctx.as_str()) {
             let _ = writeln!(md, "## 📂 {}", ctx);
@@ -348,20 +374,36 @@ fn generate_rich_report_content(date: &str, issues: &[Issue]) -> String {
         }
     }
 
+    // ▼▼▼ Notes Section (Microblog) ▼▼▼
+    if !notes.is_empty() {
+        let _ = writeln!(md, "## 📝 Daily Notes");
+        // 時系列順 (古い順) に並べる方がタイムラインとして読みやすい
+        let mut sorted_notes = notes.to_vec();
+        sorted_notes.sort_by_key(|n| n.created_at);
+
+        for note in sorted_notes {
+            // 時間を取得 (UTC -> Local)
+            let local_time = note.created_at.with_timezone(&Local);
+            let time_str = local_time.format("%H:%M").to_string();
+            
+            // 行頭記号を変える (・)
+            let _ = writeln!(md, "- `{}` {}", time_str, note.title);
+        }
+        let _ = writeln!(md, "");
+    }
+
     let _ = writeln!(md, "---");
     let _ = write!(md, "*Generated by task-batch*");
 
     md
 }
 
-/// 工程3: ファイルをGitHubにアップロード(作成/更新)する
 fn upload_file_to_github(ctx: &GithubContext, path: &str, content: &str, message: &str) -> Result<()> {
     let url = format!(
         "https://api.github.com/repos/{}/{}/contents/{}",
         ctx.owner, ctx.repo, path
     );
 
-    // 既にファイルがあるか確認 (SHA取得)
     let get_resp = ctx.client.get(&url).send()?;
     let sha = if get_resp.status().is_success() {
         let json: serde_json::Value = get_resp.json()?;
@@ -384,7 +426,6 @@ fn upload_file_to_github(ctx: &GithubContext, path: &str, content: &str, message
     let put_resp = ctx.client.put(&url).json(&body).send()?;
 
     if !put_resp.status().is_success() {
-        // エラー詳細を表示して早期リターン
         let err_text = put_resp.text()?;
         eprintln!("Failed to upload file: {}", err_text);
         return Err(anyhow::anyhow!("GitHub upload failed: {}", err_text));
@@ -394,13 +435,10 @@ fn upload_file_to_github(ctx: &GithubContext, path: &str, content: &str, message
 }
 
 // ==========================================
-// Parsing Helper Functions
+// Helper Functions
 // ==========================================
 
-/// ラベル (t:15m, t:1h) から分数を抽出して合計する
 fn parse_time_from_labels(labels: &[Label]) -> u32 {
-    // 正規表現はコストが高いのでループ外でコンパイルするか、lazy_staticを使いたいところですが、
-    // バッチ処理なので都度生成でも許容範囲です。
     let re_min = Regex::new(r"^t:(\d+)m$").unwrap();
     let re_hour = Regex::new(r"^t:(\d+)h$").unwrap();
 
@@ -419,12 +457,10 @@ fn parse_time_from_labels(labels: &[Label]) -> u32 {
     minutes
 }
 
-/// ラベル (c:work) からコンテキスト名 (Work) を抽出する
 fn parse_context_from_labels(labels: &[Label]) -> Option<String> {
     for label in labels {
         if label.name.starts_with("c:") {
             let ctx = label.name.trim_start_matches("c:");
-            // 先頭を大文字にする
             let mut c = ctx.chars();
             return Some(match c.next() {
                 None => String::new(),
@@ -435,7 +471,6 @@ fn parse_context_from_labels(labels: &[Label]) -> Option<String> {
     None
 }
 
-/// タスク行を整形する (- [x] Title `tag`)
 fn format_issue_line(issue: &Issue) -> String {
     let tags: Vec<String> = issue.labels.iter()
         .filter(|l| !l.name.starts_with("c:") && l.name != "mobile-entry" && l.name != "routine")
@@ -445,30 +480,6 @@ fn format_issue_line(issue: &Issue) -> String {
     let tags_str = if tags.is_empty() { String::new() } else { format!(" {}", tags.join(" ")) };
     
     format!("- [x] #{} {}{}", issue.number, issue.title, tags_str)
-}
-
-// ==========================================
-// Helper Functions
-// ==========================================
-
-fn is_scheduled_today(schedule: &str, today: Weekday) -> bool {
-    if schedule == "daily" {
-        return true;
-    }
-    if let Some(day_str) = schedule.strip_prefix("weekly:") {
-        let target_day = match day_str.to_lowercase().as_str() {
-            "mon" => Weekday::Mon,
-            "tue" => Weekday::Tue,
-            "wed" => Weekday::Wed,
-            "thu" => Weekday::Thu,
-            "fri" => Weekday::Fri,
-            "sat" => Weekday::Sat,
-            "sun" => Weekday::Sun,
-            _ => return false,
-        };
-        return today == target_day;
-    }
-    false
 }
 
 fn create_issue(ctx: &GithubContext, routine: &Routine) -> Result<()> {
@@ -505,4 +516,22 @@ fn close_issue(ctx: &GithubContext, issue_number: u32) -> Result<()> {
         eprintln!("    [Error] Failed to close issue: {:?}", resp.text()?);
     }
     Ok(())
+}
+
+fn is_scheduled_today(schedule: &str, today: Weekday) -> bool {
+    if schedule == "daily" { return true; }
+    if let Some(day_str) = schedule.strip_prefix("weekly:") {
+        let target_day = match day_str.to_lowercase().as_str() {
+            "mon" => Weekday::Mon,
+            "tue" => Weekday::Tue,
+            "wed" => Weekday::Wed,
+            "thu" => Weekday::Thu,
+            "fri" => Weekday::Fri,
+            "sat" => Weekday::Sat,
+            "sun" => Weekday::Sun,
+            _ => return false,
+        };
+        return today == target_day;
+    }
+    false
 }
