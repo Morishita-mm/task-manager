@@ -2,6 +2,7 @@ package com.example.mobiletaskmanager.ui.screens
 
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,7 +32,7 @@ import androidx.core.graphics.ColorUtils
 import com.example.mobiletaskmanager.data.model.Issue
 import com.example.mobiletaskmanager.data.model.Label
 import com.example.mobiletaskmanager.ui.MainUiState
-import com.example.mobiletaskmanager.ui.components.* // FilterSortButtons, BottomSheets用に必要
+import com.example.mobiletaskmanager.ui.components.*
 import com.example.mobiletaskmanager.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -46,14 +47,12 @@ fun TaskScreen(
     onAddOneOff: (String, List<Label>) -> Unit,
     onAddRoutine: (String, String, List<Label>) -> Unit,
     onAddNote: (String) -> Unit,
-    // ▼▼▼ 追加: フィルター・ソート用コールバック ▼▼▼
     onSetTaskFilter: (TaskFilterCriteria) -> Unit,
     onSetTaskSort: (SortOption) -> Unit
 ) {
     var showNoteDialog by remember { mutableStateOf(false) }
     var showAddTaskDialog by remember { mutableStateOf(false) }
 
-    // ▼▼▼ 追加: シート表示用ステート ▼▼▼
     var showFilterSheet by remember { mutableStateOf(false) }
     var showSortSheet by remember { mutableStateOf(false) }
 
@@ -80,11 +79,10 @@ fun TaskScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(bottom = padding.calculateBottomPadding())
                 .background(AppBackground)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // ▼▼▼ ヘッダー部分の修正: フィルター・ソートボタンを追加 ▼▼▼
                 Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier
@@ -100,7 +98,6 @@ fun TaskScreen(
                             color = TextPrimary
                         )
 
-                        // フィルター・ソートボタン
                         FilterSortButtons(
                             onFilterClick = { showFilterSheet = true },
                             onSortClick = { showSortSheet = true },
@@ -176,7 +173,6 @@ fun TaskScreen(
         )
     }
 
-    // ▼▼▼ 追加: フィルター・ソート用ボトムシート ▼▼▼
     if (showSortSheet) {
         SortBottomSheet(
             currentSort = uiState.taskSortOption,
@@ -195,7 +191,6 @@ fun TaskScreen(
     }
 }
 
-// ... Helper関数, TaskItemRow, Dialogs は以前の内容を維持 ...
 fun parseLabelColor(hex: String): Color {
     return try {
         val colorString = if (hex.startsWith("#")) hex else "#$hex"
