@@ -2,7 +2,6 @@ package com.example.mobiletaskmanager.ui.screens
 
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -83,6 +82,7 @@ fun TaskScreen(
                 .background(AppBackground)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
+                // Header (Active Tasks + Buttons)
                 Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier
@@ -173,6 +173,7 @@ fun TaskScreen(
         )
     }
 
+    // Sheets
     if (showSortSheet) {
         SortBottomSheet(
             currentSort = uiState.taskSortOption,
@@ -191,6 +192,7 @@ fun TaskScreen(
     }
 }
 
+// ... Helper関数, TaskItemRow, Dialogs は以前の内容を維持 ...
 fun parseLabelColor(hex: String): Color {
     return try {
         val colorString = if (hex.startsWith("#")) hex else "#$hex"
@@ -324,7 +326,31 @@ fun AdvancedAddTaskDialog(availableLabels: List<Label>, onDismiss: () -> Unit, o
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { if (title.isNotBlank()) { if (isRoutine) { val schedule = if (selectedDays.size == 7) "daily" else "weekly:${selectedDays.joinToString(",").lowercase()}"; onAddRoutine(title, schedule, selectedLabels) } else { onAddOneOff(title, selectedLabels) } } }, enabled = title.isNotBlank() && (!isRoutine || selectedDays.isNotEmpty())) { Text(if (isRoutine) "Add Routine" else "Add Task", color = PrimaryAccent) } },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (title.isNotBlank()) {
+                        // ▼▼▼ 修正: s:todo を自動付与 ▼▼▼
+                        val todoLabel = availableLabels.find { it.name == "s:todo" }
+                        val finalLabels = if (todoLabel != null && !selectedLabels.contains(todoLabel)) {
+                            selectedLabels + todoLabel
+                        } else {
+                            selectedLabels
+                        }
+
+                        if (isRoutine) {
+                            val schedule = if (selectedDays.size == 7) "daily" else "weekly:${selectedDays.joinToString(",").lowercase()}"
+                            onAddRoutine(title, schedule, finalLabels)
+                        } else {
+                            onAddOneOff(title, finalLabels)
+                        }
+                    }
+                },
+                enabled = title.isNotBlank() && (!isRoutine || selectedDays.isNotEmpty())
+            ) {
+                Text(if (isRoutine) "Add Routine" else "Add Task", color = PrimaryAccent)
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) } },
         containerColor = SurfaceColor, titleContentColor = TextPrimary, textContentColor = TextPrimary
     )

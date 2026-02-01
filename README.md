@@ -27,6 +27,7 @@ graph TD
     User -- "Add Routine (IssueOps)" --> Android
     Android -- "Update YAML Config" --> GitHub
 
+
 ```
 
 ## 🚀 Features
@@ -42,15 +43,33 @@ Rustで実装されたCLIツール (`task-batch`) が、タスクのライフサ
 
 ### 2. Mobile Client (Android)
 
-Kotlin + Jetpack Compose で構築されたモダンなモバイルクライアントです。
+Kotlin + Jetpack Compose で構築されたモダンなモバイルクライアントです。生活のあらゆる側面を管理するための専用画面を実装しています。
 
-* **MVVM Architecture**: `Repository` パターンと `ViewModel` による堅牢な設計。
-* **IssueOps via UI**: アプリ上のフォームから定期タスクを追加すると、GitHub上の `routines.yaml` を直接書き換え、システム設定を変更できます。
-* **Rich UI**:
-* Material 3 Design
-* Pull-to-Refresh による最新同期
-* ラベル（Priority/Context）のフィルタリング選択
-* BottomSheet によるスムーズなタスク追加
+* **Active Tasks**:
+* 現在進行中のタスク一覧を表示。
+* Priority（優先度）やContext（状況）によるフィルタリングと並べ替え機能。
+* Pull-to-Refresh による最新同期。
+
+
+* **Archive**:
+* 完了済み（Closed）タスクの履歴確認。
+
+
+* **Reports Viewer**:
+* Rustバックエンドによって自動生成された日報（Daily Reports）をアプリ内でレンダリングして閲覧。
+
+
+* **Microblog / Notes**:
+* "X (Twitter)" ライクなタイムラインUI。
+* タスク化する前の「つぶやき」や「メモ」を素早く記録するための専用スペース。
+
+
+* **Knowledge Base**:
+* リポジトリ内で管理されているMarkdown形式のナレッジ（技術メモやドキュメント）の閲覧と新規作成。
+
+
+* **IssueOps via UI**:
+* アプリ上のフォームから定期タスクを追加すると、GitHub上の `routines.yaml` を直接書き換え、システム設定を変更できます。
 
 
 
@@ -83,6 +102,7 @@ GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 GITHUB_OWNER=YourUserName
 GITHUB_REPO=my-life
 
+
 ```
 
 ### 3. Android Secrets
@@ -94,6 +114,7 @@ Androidアプリ側は `local.properties` に定義を追加します（ビル�
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 GITHUB_OWNER=YourUserName
 GITHUB_REPO=my-life
+
 
 ```
 
@@ -116,6 +137,7 @@ GITHUB_REPO=my-life
 ```bash
 cp task-batch/launchd/*.plist ~/Library/LaunchAgents/
 
+
 ```
 
 ### 3. Load & Start
@@ -130,6 +152,7 @@ launchctl start com.yourname.taskmanager
 # Report & Cleanup Job (Night)
 launchctl load ~/Library/LaunchAgents/com.yourname.taskmanager.report.plist
 launchctl start com.yourname.taskmanager.report
+
 
 ```
 
@@ -158,6 +181,7 @@ launchctl start com.yourname.taskmanager.report
 └── config/
     └── routines.yaml     # Routine Definitions (Source of Truth)
 
+
 ```
 
 ## ⚙️ Configuration (`routines.yaml`)
@@ -173,6 +197,7 @@ routines:
   - title: "メールチェック"
     schedule: "daily"
     labels: ["c:work", "t:15m"]
+
 
 ```
 
@@ -198,13 +223,22 @@ cargo run --release -- cleanup
 # Create Daily Report (Push to GitHub)
 cargo run --release -- report
 
+
 ```
 
 ## 📸 Screenshots
 
-| Task List | Add Task (Bottom Sheet) |
+| Active Tasks | Add Task |
 | --- | --- |
 | <img src="docs/task-list.jpg" width="300" /> | <img src="docs/add-task.jpg" width="300" /> |
+
+| Microblog (Notes) | Daily Reports |
+| --- | --- |
+| <img src="docs/notes.jpg" width="300" /> | <img src="docs/reports.jpg" width="300" /> |
+
+| Archive | Knowledge Base |
+| --- | --- |
+| <img src="docs/archive.jpg" width="300" /> | <img src="docs/knowledge.jpg" width="300" /> |
 
 ---
 
