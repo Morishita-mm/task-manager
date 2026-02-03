@@ -6,6 +6,7 @@ data class IdeaUiState(
     val ideas: List<IdeaWithFeatures> = emptyList(),
     val selectedIdea: IdeaWithFeatures? = null,
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val error: String? = null
 )
 

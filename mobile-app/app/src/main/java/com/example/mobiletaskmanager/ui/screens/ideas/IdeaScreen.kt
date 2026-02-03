@@ -21,16 +21,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.data.model.Issue
 import com.example.mobiletaskmanager.ui.theme.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IdeaScreen(
     uiState: IdeaUiState,
     viewModel: IdeaViewModel
 ) {
-    LaunchedEffect(Unit) {
-        viewModel.loadIdeas()
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -40,20 +39,24 @@ fun IdeaScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = PrimaryAccent)
             }
-        } else if (uiState.error != null) {
+        } else if (uiState.error != null && uiState.ideas.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(text = "Error: ${uiState.error}", color = MaterialTheme.colorScheme.error)
             }
         } else if (uiState.selectedIdea != null) {
             IdeaDetailScreen(
-                ideaWithFeatures = uiState.selectedIdea,
+                uiState = uiState,
+                ideaWithFeatures = uiState.selectedIdea!!,
+                onRefresh = { viewModel.loadIdeas(isRefresh = true) }, // リフレッシュ機能を追加
                 onAddFeature = { title -> viewModel.addFeature(uiState.selectedIdea!!.idea, title) },
                 onCloseIssue = { issue -> viewModel.closeIssueAndSubIssues(issue) },
                 onBack = { viewModel.selectIdea(null) }
             )
         } else {
             IdeaListScreen(
+                uiState = uiState,
                 ideas = uiState.ideas,
+                onRefresh = { viewModel.loadIdeas(isRefresh = true) },
                 onAddIdea = { title, body -> viewModel.addIdea(title, body) },
                 onIdeaClick = { idea -> viewModel.selectIdea(idea) }
             )
@@ -61,17 +64,20 @@ fun IdeaScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IdeaListScreen(
+    uiState: IdeaUiState,
     ideas: List<IdeaWithFeatures>,
+    onRefresh: () -> Unit,
     onAddIdea: (String, String) -> Unit,
     onIdeaClick: (IdeaWithFeatures) -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    val pullToRefreshState = rememberPullToRefreshState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 他の画面（TasksやReports）とスタイルを統一したヘッダー
             Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "Active Ideas: ${ideas.size}",
@@ -83,13 +89,21 @@ fun IdeaListScreen(
             }
             HorizontalDivider(color = DividerColor)
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(ideas) { ideaWithFeatures ->
-                    IdeaItem(
-                        ideaWithFeatures = ideaWithFeatures,
-                        onClick = { onIdeaClick(ideaWithFeatures) }
-                    )
-                    HorizontalDivider(color = DividerColor, thickness = 0.5.dp)
+            // ▼▼▼ リフレッシュ機能の追加 ▼▼▼
+            PullToRefreshBox(
+                isRefreshing = uiState.isRefreshing,
+                onRefresh = onRefresh,
+                state = pullToRefreshState,
+                modifier = Modifier.weight(1f)
+            ) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(ideas) { ideaWithFeatures ->
+                        IdeaItem(
+                            ideaWithFeatures = ideaWithFeatures,
+                            onClick = { onIdeaClick(ideaWithFeatures) }
+                        )
+                        HorizontalDivider(color = DividerColor, thickness = 0.5.dp)
+                    }
                 }
             }
         }
@@ -146,17 +160,21 @@ fun IdeaItem(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IdeaDetailScreen(
+    uiState: IdeaUiState,
     ideaWithFeatures: IdeaWithFeatures,
+    onRefresh: () -> Unit, // 追加
     onAddFeature: (String) -> Unit,
     onCloseIssue: (Issue) -> Unit,
     onBack: () -> Unit
 ) {
     var showAddFeatureDialog by remember { mutableStateOf(false) }
+    val pullToRefreshState = rememberPullToRefreshState() // 状態管理を追加
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Toolbar: ScaffoldのTopAppBarを廃止し、ReportDetailViewと同じスタイルで実装
+        // Toolbar
         Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.padding(8.dp),
@@ -173,74 +191,87 @@ fun IdeaDetailScreen(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                // ローディングインジケーター（リフレッシュ中でない通常のロード時）
+                if (uiState.isLoading && !uiState.isRefreshing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp).padding(4.dp),
+                        strokeWidth = 2.dp,
+                        color = PrimaryAccent
+                    )
+                }
             }
         }
         HorizontalDivider(color = DividerColor)
 
         Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp)
+            // ▼▼▼ 追加: 詳細画面全体をリフレッシュ可能にする ▼▼▼
+            PullToRefreshBox(
+                isRefreshing = uiState.isRefreshing,
+                onRefresh = onRefresh,
+                state = pullToRefreshState,
+                modifier = Modifier.fillMaxSize()
             ) {
-                Text(
-                    text = "Description",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = PrimaryAccent,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = ideaWithFeatures.idea.body ?: "No description.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextPrimary
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(
-                    text = "Features",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = PrimaryAccent,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // 子Issueのリスト表示
-                ideaWithFeatures.features.forEach { feature ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                        border = androidx.compose.foundation.BorderStroke(0.5.dp, DividerColor)
-                    ) {
-                        Text(
-                            text = feature.title,
-                            modifier = Modifier.padding(16.dp),
-                            color = TextPrimary
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Close Button
-                Button(
-                    onClick = { onCloseIssue(ideaWithFeatures.idea) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryAccent.copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(12.dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp)
                 ) {
-                    Text("Close Idea and Features", color = Color.White)
-                }
+                    Text(
+                        text = "Description",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = PrimaryAccent,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = ideaWithFeatures.idea.body ?: "No description.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextPrimary
+                    )
 
-                Spacer(modifier = Modifier.height(88.dp)) // FAB用の余白
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Text(
+                        text = "Features",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = PrimaryAccent,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    ideaWithFeatures.features.forEach { feature ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, DividerColor)
+                        ) {
+                            Text(
+                                text = feature.title,
+                                modifier = Modifier.padding(16.dp),
+                                color = TextPrimary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    Button(
+                        onClick = { onCloseIssue(ideaWithFeatures.idea) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryAccent.copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Close Idea and Features", color = Color.White)
+                    }
+
+                    Spacer(modifier = Modifier.height(88.dp))
+                }
             }
 
-            // アイデア詳細内でのFeature追加FAB
             FloatingActionButton(
                 onClick = { showAddFeatureDialog = true },
                 containerColor = PrimaryAccent,

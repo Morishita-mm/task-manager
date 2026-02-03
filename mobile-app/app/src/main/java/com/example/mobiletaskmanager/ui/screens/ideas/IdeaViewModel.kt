@@ -20,9 +20,15 @@ class IdeaViewModel(private val repository: GithubRepository) : ViewModel() {
         loadIdeas()
     }
 
-    fun loadIdeas() {
+    // 引数 isRefresh を追加して、初回ロードとリフレッシュを使い分ける
+    fun loadIdeas(isRefresh: Boolean = false) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            if (isRefresh) {
+                _uiState.update { it.copy(isRefreshing = true) }
+            } else {
+                _uiState.update { it.copy(isLoading = true) }
+            }
+
             try {
                 val allIssues = repository.getIssues()
 
@@ -38,10 +44,24 @@ class IdeaViewModel(private val repository: GithubRepository) : ViewModel() {
                     IdeaWithFeatures(idea, relatedFeatures)
                 }
 
-                _uiState.update { it.copy(ideas = ideasWithFeatures, isLoading = false) }
+                _uiState.update {
+                    it.copy(
+                        ideas = ideasWithFeatures,
+                        isLoading = false,
+                        isRefreshing = false,
+                        error = null
+                    )
+                }
+
+                // 詳細表示中の場合は、選択中のデータも更新する
+                val currentSelected = _uiState.value.selectedIdea
+                if (currentSelected != null) {
+                    val updatedSelected = ideasWithFeatures.find { it.idea.number == currentSelected.idea.number }
+                    _uiState.update { it.copy(selectedIdea = updatedSelected) }
+                }
 
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message, isLoading = false) }
+                _uiState.update { it.copy(error = e.message, isLoading = false, isRefreshing = false) }
             }
         }
     }
@@ -52,45 +72,47 @@ class IdeaViewModel(private val repository: GithubRepository) : ViewModel() {
 
     fun addIdea(title: String, body: String) {
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) } // 追加中もロード表示
             try {
                 repository.createIssue(title, listOf("type:idea"), body)
-                loadIdeas()
+                loadIdeas(isRefresh = true) // 追加後に最新化
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
+                _uiState.update { it.copy(error = e.message, isLoading = false) }
             }
         }
     }
 
     fun addFeature(parentIdea: Issue, title: String) {
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
             val body = "Parent: #${parentIdea.number}"
             try {
                 repository.createIssue(title, listOf("type:feature"), body)
-                loadIdeas()
+                loadIdeas(isRefresh = true) // 追加後に最新化
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
+                _uiState.update { it.copy(error = e.message, isLoading = false) }
             }
         }
     }
-     fun closeIssueAndSubIssues(issue: Issue) {
+
+    fun closeIssueAndSubIssues(issue: Issue) {
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
             try {
                 val ideaWithFeatures = _uiState.value.ideas.find { it.idea.number == issue.number }
 
                 if (ideaWithFeatures != null) {
-                    // このアイデアに紐づくすべてのFeatureをクローズ
                     ideaWithFeatures.features.forEach { feature ->
                         repository.closeIssue(feature.number)
                     }
                 }
-
-                // 親Issueをクローズ
                 repository.closeIssue(issue.number)
 
-                // リストを更新
-                loadIdeas()
+                // クローズ後は詳細画面を閉じる
+                _uiState.update { it.copy(selectedIdea = null) }
+                loadIdeas(isRefresh = true)
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
+                _uiState.update { it.copy(error = e.message, isLoading = false) }
             }
         }
     }
