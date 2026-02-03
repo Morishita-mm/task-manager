@@ -1,7 +1,9 @@
 package com.example.mobiletaskmanager.ui.navigation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -12,8 +14,10 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -22,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.ui.GuidelineScreen
 import com.example.mobiletaskmanager.ui.screens.archive.ArchiveScreen
 import com.example.mobiletaskmanager.ui.screens.archive.ArchiveViewModel
+import com.example.mobiletaskmanager.ui.screens.ideas.IdeaScreen
+import com.example.mobiletaskmanager.ui.screens.ideas.IdeaViewModel
 import com.example.mobiletaskmanager.ui.screens.knowledge.KnowledgeScreen
 import com.example.mobiletaskmanager.ui.screens.knowledge.KnowledgeViewModel
 import com.example.mobiletaskmanager.ui.screens.notes.NoteScreen
@@ -36,6 +42,7 @@ import kotlinx.coroutines.launch
 enum class Screen(val title: String, val icon: ImageVector) {
     Tasks("Tasks", Icons.Default.List),
     Notes("Notes", Icons.Default.ChatBubbleOutline),
+    Ideas("Ideas", Icons.Default.Lightbulb),
     Reports("Reports", Icons.Default.Description),
     Knowledge("Knowledge", Icons.Default.EditNote),
     Archive("Archive", Icons.Default.Check),
@@ -47,6 +54,7 @@ enum class Screen(val title: String, val icon: ImageVector) {
 fun AppNavigation(
     taskViewModel: TaskViewModel,
     noteViewModel: NoteViewModel,
+    ideaViewModel: IdeaViewModel,
     reportViewModel: ReportViewModel,
     knowledgeViewModel: KnowledgeViewModel,
     archiveViewModel: ArchiveViewModel
@@ -131,6 +139,13 @@ fun AppNavigation(
                             isRefreshing = isRefreshing,
                             onAddNote = noteViewModel::addNote,
                             onRefresh = noteViewModel::refresh
+                        )
+                    }
+                    Screen.Ideas -> {
+                        val state by ideaViewModel.uiState.collectAsState()
+                        IdeaScreen(
+                            uiState = state,
+                            viewModel = ideaViewModel
                         )
                     }
                     Screen.Reports -> {

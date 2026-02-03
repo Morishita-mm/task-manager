@@ -28,7 +28,7 @@ class TaskViewModel(private val repository: GithubRepository) : ViewModel() {
             try {
                 val labels = repository.getLabels()
                 val issues = repository.getIssues()
-                _rawIssues = issues.filter { it.labels.none { l -> l.name == "type:note" } }
+                _rawIssues = issues.filter { it.labels.none { l -> l.name == "type:note" || l.name == "type:idea" || l.name == "type:feature" } }
                 _uiState.update { it.copy(labels = labels) }
                 applyFiltersAndSort()
             } catch (e: Exception) {

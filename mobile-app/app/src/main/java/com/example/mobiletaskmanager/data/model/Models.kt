@@ -12,6 +12,7 @@ data class Issue(
     val state: String,
     @SerialName("created_at")
     val createdAt: String,
+    val body: String? = null,
     val labels: List<Label> = emptyList()
 )
 
@@ -24,6 +25,7 @@ data class Label(
 @Serializable
 data class CreateIssueRequest(
     val title: String,
+    val body: String? = null,
     val labels: List<String> = listOf("mobile-entry")
 )
 

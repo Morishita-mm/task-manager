@@ -51,10 +51,12 @@ class GithubRepository(
     }
 
     suspend fun createIssue(title: String, labels: List<String>): Issue {
-        return api.createIssue(
-            authHeader, owner, repo,
-            CreateIssueRequest(title, labels)
-        )
+        return createIssue(title, labels, null)
+    }
+
+    suspend fun createIssue(title: String, labels: List<String>, body: String? = null): Issue {
+        val request = CreateIssueRequest(title = title, body = body, labels = labels)
+        return api.createIssue(authHeader, owner, repo, request)
     }
 
     suspend fun createRoutineTask(title: String, schedule: String, labelNames: List<String>) {
