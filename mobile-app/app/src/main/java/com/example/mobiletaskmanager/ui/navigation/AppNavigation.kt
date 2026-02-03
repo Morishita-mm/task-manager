@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
@@ -32,7 +33,7 @@ import kotlinx.coroutines.launch
 
 enum class Screen(val title: String, val icon: ImageVector) {
     Tasks("Tasks", Icons.Default.List),
-    Notes("Notes", Icons.Default.Edit),
+    Notes("Notes", Icons.Default.ChatBubbleOutline),
     Reports("Reports", Icons.Default.Description),
     Knowledge("Knowledge", Icons.Default.EditNote),
     Archive("Archive", Icons.Default.Check),
