@@ -5,15 +5,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mobiletaskmanager.data.api.GithubApiService
 import com.example.mobiletaskmanager.data.repository.GithubRepository
-import com.example.mobiletaskmanager.ui.MainViewModel
 import com.example.mobiletaskmanager.ui.navigation.AppNavigation
+import com.example.mobiletaskmanager.ui.screens.archive.ArchiveViewModel
+import com.example.mobiletaskmanager.ui.screens.knowledge.KnowledgeViewModel
+import com.example.mobiletaskmanager.ui.screens.notes.NoteViewModel
+import com.example.mobiletaskmanager.ui.screens.reports.ReportViewModel
+import com.example.mobiletaskmanager.ui.screens.tasks.TaskViewModel
 import com.example.mobiletaskmanager.ui.theme.*
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.json.Json
@@ -25,7 +27,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // DI Setup (Hiltを使わない簡易DI)
         val contentType = "application/json".toMediaType()
         val retrofit = Retrofit.Builder()
             .baseUrl("https://api.github.com/")
@@ -42,13 +43,18 @@ class MainActivity : ComponentActivity() {
 
         val viewModelFactory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                @Suppress("UNCHECKED_CAST")
-                return MainViewModel(repository) as T
+                return when {
+                    modelClass.isAssignableFrom(TaskViewModel::class.java) -> TaskViewModel(repository) as T
+                    modelClass.isAssignableFrom(NoteViewModel::class.java) -> NoteViewModel(repository) as T
+                    modelClass.isAssignableFrom(ReportViewModel::class.java) -> ReportViewModel(repository) as T
+                    modelClass.isAssignableFrom(KnowledgeViewModel::class.java) -> KnowledgeViewModel(repository) as T
+                    modelClass.isAssignableFrom(ArchiveViewModel::class.java) -> ArchiveViewModel(repository) as T
+                    else -> throw IllegalArgumentException("Unknown ViewModel class")
+                }
             }
         }
 
         setContent {
-            // テーマの適用
             MaterialTheme(
                 colorScheme = darkColorScheme(
                     background = AppBackground,
@@ -58,13 +64,18 @@ class MainActivity : ComponentActivity() {
                     onSurface = TextPrimary
                 )
             ) {
-                val viewModel: MainViewModel = viewModel(factory = viewModelFactory)
-                val uiState by viewModel.uiState.collectAsState()
+                val taskViewModel: TaskViewModel = viewModel(factory = viewModelFactory)
+                val noteViewModel: NoteViewModel = viewModel(factory = viewModelFactory)
+                val reportViewModel: ReportViewModel = viewModel(factory = viewModelFactory)
+                val knowledgeViewModel: KnowledgeViewModel = viewModel(factory = viewModelFactory)
+                val archiveViewModel: ArchiveViewModel = viewModel(factory = viewModelFactory)
 
-                // ナビゲーションの呼び出し
                 AppNavigation(
-                    uiState = uiState,
-                    viewModel = viewModel
+                    taskViewModel = taskViewModel,
+                    noteViewModel = noteViewModel,
+                    reportViewModel = reportViewModel,
+                    knowledgeViewModel = knowledgeViewModel,
+                    archiveViewModel = archiveViewModel
                 )
             }
         }

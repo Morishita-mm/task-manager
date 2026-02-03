@@ -1,4 +1,4 @@
-package com.example.mobiletaskmanager.ui.screens
+package com.example.mobiletaskmanager.ui.screens.notes
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -22,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.data.model.Issue
-import com.example.mobiletaskmanager.ui.MainUiState
 import com.example.mobiletaskmanager.ui.theme.*
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -30,27 +29,24 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteScreen(
-    uiState: MainUiState,
+    notes: List<Issue>,
+    isRefreshing: Boolean,
     onAddNote: (String) -> Unit,
     onRefresh: () -> Unit
 ) {
     var text by remember { mutableStateOf("") }
-    // 投稿中のローカル状態（API通信中の連打防止とフィードバック用）
     var isPosting by remember { mutableStateOf(false) }
 
-    val pullToRefreshState = rememberPullToRefreshState()
     val focusManager = LocalFocusManager.current
 
-    // 初回ロード
     LaunchedEffect(Unit) {
-        if (uiState.notes.isEmpty() && !uiState.isLoading) {
+        if (notes.isEmpty() && !isRefreshing) {
             onRefresh()
         }
     }
 
-    // uiState.isRefreshing が false に戻ったら投稿完了とみなしてローカルのローディングを解除
-    LaunchedEffect(uiState.isRefreshing) {
-        if (!uiState.isRefreshing) {
+    LaunchedEffect(isRefreshing) {
+        if (!isRefreshing) {
             isPosting = false
         }
     }
@@ -60,7 +56,6 @@ fun NoteScreen(
             .fillMaxSize()
             .background(AppBackground)
     ) {
-        // Header
         Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = "Microblog / Notes",
@@ -72,27 +67,23 @@ fun NoteScreen(
         }
         HorizontalDivider(color = DividerColor)
 
-        // Timeline with PullToRefresh
         PullToRefreshBox(
-            isRefreshing = uiState.isRefreshing,
+            isRefreshing = isRefreshing,
             onRefresh = onRefresh,
-            state = pullToRefreshState,
             modifier = Modifier.weight(1f)
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                // itemsにkeyを指定して描画効率とアニメーションを最適化
                 content = {
-                    items(uiState.notes, key = { it.number }) { note ->
+                    items(notes, key = { it.number }) { note ->
                         NoteItem(note)
                     }
                 }
             )
         }
 
-        // Input Area
         Surface(
             color = SurfaceColor,
             tonalElevation = 4.dp,
@@ -110,7 +101,7 @@ fun NoteScreen(
                     placeholder = { Text("What's on your mind?") },
                     modifier = Modifier.weight(1f),
                     maxLines = 4,
-                    enabled = !isPosting, // 投稿中は入力を無効化
+                    enabled = !isPosting, 
                     shape = RoundedCornerShape(24.dp),
                     keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = {
@@ -125,7 +116,6 @@ fun NoteScreen(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // 送信ボタンまたはローディングインジケータ
                 Box(
                     modifier = Modifier.size(48.dp),
                     contentAlignment = Alignment.Center

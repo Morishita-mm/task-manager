@@ -1,4 +1,4 @@
-package com.example.mobiletaskmanager.ui.screens
+package com.example.mobiletaskmanager.ui.screens.archive
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -17,17 +17,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.data.model.Issue
-import com.example.mobiletaskmanager.ui.MainUiState
-import com.example.mobiletaskmanager.ui.MainViewModel
 import com.example.mobiletaskmanager.ui.components.*
 import com.example.mobiletaskmanager.ui.theme.*
+import com.example.mobiletaskmanager.ui.screens.tasks.parseLabelColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArchiveScreen(
-    uiState: MainUiState,
-    viewModel: MainViewModel,
-    onLoadArchive: () -> Unit
+    uiState: ArchiveUiState,
+    onLoadArchive: () -> Unit,
+    onSetFilter: (TaskFilterCriteria) -> Unit,
+    onSetSort: (SortOption) -> Unit
 ) {
     var showFilterSheet by remember { mutableStateOf(false) }
     var showSortSheet by remember { mutableStateOf(false) }
@@ -41,7 +41,6 @@ fun ArchiveScreen(
             .fillMaxSize()
             .background(AppBackground)
     ) {
-        // Header Row
         Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
@@ -51,7 +50,7 @@ fun ArchiveScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Archive (${uiState.filteredClosedIssues.size})",
+                    text = "Archive (${uiState.filteredIssues.size})",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
@@ -60,8 +59,8 @@ fun ArchiveScreen(
                 FilterSortButtons(
                     onFilterClick = { showFilterSheet = true },
                     onSortClick = { showSortSheet = true },
-                    activeFilterCount = uiState.archiveFilterCriteria.selectedLabels.size +
-                            (if (uiState.archiveFilterCriteria.dateQuery.isNotEmpty()) 1 else 0)
+                    activeFilterCount = uiState.filterCriteria.selectedLabels.size +
+                            (if (uiState.filterCriteria.dateQuery.isNotEmpty()) 1 else 0)
                 )
             }
         }
@@ -76,27 +75,26 @@ fun ArchiveScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 16.dp)
         ) {
-            items(uiState.filteredClosedIssues) { issue ->
+            items(uiState.filteredIssues) { issue ->
                 ArchiveRow(issue = issue)
                 HorizontalDivider(color = DividerColor, thickness = 1.dp)
             }
         }
     }
 
-    // Sheets
     if (showSortSheet) {
         SortBottomSheet(
-            currentSort = uiState.archiveSortOption,
-            onSortSelected = viewModel::setArchiveSort,
+            currentSort = uiState.sortOption,
+            onSortSelected = onSetSort,
             onDismiss = { showSortSheet = false }
         )
     }
     if (showFilterSheet) {
         TaskFilterBottomSheet(
-            labels = uiState.labels,
-            currentFilter = uiState.archiveFilterCriteria,
-            onApply = viewModel::setArchiveFilter,
-            onReset = { viewModel.setArchiveFilter(TaskFilterCriteria()) },
+            labels = emptyList(), // Archive screen does not need labels for filtering
+            currentFilter = uiState.filterCriteria,
+            onApply = onSetFilter,
+            onReset = { onSetFilter(TaskFilterCriteria()) },
             onDismiss = { showFilterSheet = false }
         )
     }
@@ -128,7 +126,7 @@ fun ArchiveRow(issue: Issue) {
                 ) {
                     issue.labels.forEach { label ->
                         if (label.name == "mobile-entry") return@forEach
-                        val bgColor = label.color.toColor().copy(alpha = 0.3f)
+                        val bgColor = parseLabelColor(label.color).copy(alpha = 0.3f)
                         Surface(
                             color = bgColor,
                             shape = RoundedCornerShape(4.dp),

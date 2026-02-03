@@ -8,7 +8,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
@@ -21,13 +20,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.ui.GuidelineScreen
-import com.example.mobiletaskmanager.ui.MainUiState
-import com.example.mobiletaskmanager.ui.MainViewModel
-import com.example.mobiletaskmanager.ui.screens.ArchiveScreen
-import com.example.mobiletaskmanager.ui.screens.KnowledgeScreen
-import com.example.mobiletaskmanager.ui.screens.NoteScreen
-import com.example.mobiletaskmanager.ui.screens.ReportScreen
-import com.example.mobiletaskmanager.ui.screens.TaskScreen
+import com.example.mobiletaskmanager.ui.screens.archive.ArchiveScreen
+import com.example.mobiletaskmanager.ui.screens.archive.ArchiveViewModel
+import com.example.mobiletaskmanager.ui.screens.knowledge.KnowledgeScreen
+import com.example.mobiletaskmanager.ui.screens.knowledge.KnowledgeViewModel
+import com.example.mobiletaskmanager.ui.screens.notes.NoteScreen
+import com.example.mobiletaskmanager.ui.screens.notes.NoteViewModel
+import com.example.mobiletaskmanager.ui.screens.reports.ReportScreen
+import com.example.mobiletaskmanager.ui.screens.reports.ReportViewModel
+import com.example.mobiletaskmanager.ui.screens.tasks.TaskScreen
+import com.example.mobiletaskmanager.ui.screens.tasks.TaskViewModel
 import com.example.mobiletaskmanager.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -43,8 +45,11 @@ enum class Screen(val title: String, val icon: ImageVector) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation(
-    uiState: MainUiState,
-    viewModel: MainViewModel
+    taskViewModel: TaskViewModel,
+    noteViewModel: NoteViewModel,
+    reportViewModel: ReportViewModel,
+    knowledgeViewModel: KnowledgeViewModel,
+    archiveViewModel: ArchiveViewModel
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -104,42 +109,61 @@ fun AppNavigation(
         ) { innerPadding ->
             Box(modifier = Modifier.padding(innerPadding)) {
                 when (currentScreen) {
-                    Screen.Tasks -> TaskScreen(
-                        uiState = uiState,
-                        onRefresh = viewModel::refresh,
-                        onCloseIssue = viewModel::closeIssue,
-                        onUpdateStatus = viewModel::updateIssueStatus,
-                        onAddOneOff = viewModel::addOneOffTask,
-                        onAddRoutine = viewModel::addRoutineTask,
-                        onAddNote = viewModel::addNote,
-                        onSetTaskFilter = viewModel::setTaskFilter,
-                        onSetTaskSort = viewModel::setTaskSort
-                    )
-                    Screen.Notes -> NoteScreen(
-                        uiState = uiState,
-                        onAddNote = viewModel::addNote,
-                        onRefresh = viewModel::refresh
-                    )
-                    Screen.Reports -> ReportScreen(
-                        uiState = uiState,
-                        viewModel = viewModel,
-                        onLoadReports = viewModel::loadReports,
-                        onSelectReport = viewModel::selectReport,
-                        onBackToList = viewModel::clearSelectedReport
-                    )
-                    Screen.Knowledge -> KnowledgeScreen(
-                        uiState = uiState,
-                        onLoad = viewModel::loadKnowledgeFiles,
-                        onSelect = viewModel::selectKnowledge,
-                        onCreate = viewModel::startCreateKnowledge,
-                        onCloseEditor = viewModel::closeEditor,
-                        onSave = viewModel::saveKnowledge
-                    )
-                    Screen.Archive -> ArchiveScreen(
-                        uiState = uiState,
-                        viewModel = viewModel,
-                        onLoadArchive = viewModel::loadClosedIssues
-                    )
+                    Screen.Tasks -> {
+                        val state by taskViewModel.uiState.collectAsState()
+                        TaskScreen(
+                            uiState = state,
+                            onRefresh = taskViewModel::refresh,
+                            onCloseIssue = taskViewModel::closeIssue,
+                            onUpdateStatus = taskViewModel::updateIssueStatus,
+                            onAddOneOff = taskViewModel::addOneOffTask,
+                            onAddRoutine = taskViewModel::addRoutineTask,
+                            onAddNote = noteViewModel::addNote,
+                            onSetTaskFilter = taskViewModel::setFilter,
+                            onSetTaskSort = taskViewModel::setSort
+                        )
+                    }
+                    Screen.Notes -> {
+                        val notes by noteViewModel.notes.collectAsState()
+                        val isRefreshing by noteViewModel.isRefreshing.collectAsState()
+                        NoteScreen(
+                            notes = notes,
+                            isRefreshing = isRefreshing,
+                            onAddNote = noteViewModel::addNote,
+                            onRefresh = noteViewModel::refresh
+                        )
+                    }
+                    Screen.Reports -> {
+                        val state by reportViewModel.uiState.collectAsState()
+                        ReportScreen(
+                            uiState = state,
+                            onLoadReports = reportViewModel::loadReports,
+                            onSelectReport = reportViewModel::selectReport,
+                            onBackToList = reportViewModel::clearSelectedReport,
+                            onSetFilter = reportViewModel::setFilter,
+                            onSetSort = reportViewModel::setSort
+                        )
+                    }
+                    Screen.Knowledge -> {
+                        val state by knowledgeViewModel.uiState.collectAsState()
+                        KnowledgeScreen(
+                            uiState = state,
+                            onLoad = knowledgeViewModel::loadKnowledgeFiles,
+                            onSelect = knowledgeViewModel::selectKnowledge,
+                            onCreate = knowledgeViewModel::startCreateKnowledge,
+                            onCloseEditor = knowledgeViewModel::closeEditor,
+                            onSave = knowledgeViewModel::saveKnowledge
+                        )
+                    }
+                    Screen.Archive -> {
+                        val state by archiveViewModel.uiState.collectAsState()
+                        ArchiveScreen(
+                            uiState = state,
+                            onLoadArchive = archiveViewModel::loadInitialData,
+                            onSetFilter = archiveViewModel::setFilter,
+                            onSetSort = archiveViewModel::setSort
+                        )
+                    }
                     Screen.Guidelines -> GuidelineScreen()
                 }
             }

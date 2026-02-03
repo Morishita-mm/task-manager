@@ -1,4 +1,4 @@
-package com.example.mobiletaskmanager.ui.screens
+package com.example.mobiletaskmanager.ui.screens.knowledge
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,7 +13,6 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,43 +20,37 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.data.model.RepoContent
-import com.example.mobiletaskmanager.ui.MainUiState
 import com.example.mobiletaskmanager.ui.theme.*
-import kotlinx.coroutines.delay // 追加
-import kotlinx.coroutines.launch // 追加
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KnowledgeScreen(
-    uiState: MainUiState,
+    uiState: KnowledgeUiState,
     onLoad: () -> Unit,
     onSelect: (RepoContent) -> Unit,
     onCreate: () -> Unit,
     onCloseEditor: () -> Unit,
     onSave: (String, String) -> Unit
 ) {
-    // 画面表示時にロード
     LaunchedEffect(Unit) {
         onLoad()
     }
 
     if (uiState.editingKnowledge != null) {
-        // エディタモード
         KnowledgeEditor(
             initialName = uiState.editingKnowledge.name,
             initialContent = uiState.editingKnowledge.content,
             isNewFile = uiState.editingKnowledge.sha == null,
-            statusMessage = uiState.statusMessage,
+            error = uiState.error,
             isLoading = uiState.isLoading,
             onBack = onCloseEditor,
             onSave = onSave
         )
     } else {
-        // 一覧モード
-        // ▼▼▼ 追加: ローカル状態管理 ▼▼▼
         var isRefreshing by remember { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
-        val pullToRefreshState = rememberPullToRefreshState()
 
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -76,9 +69,8 @@ fun KnowledgeScreen(
                 }
                 HorizontalDivider(color = DividerColor)
 
-                // ▼▼▼ 修正: ローカル isRefreshing と weight(1f) を使用 ▼▼▼
                 PullToRefreshBox(
-                    isRefreshing = isRefreshing, // ここをisLoadingではなくisRefreshingに変更
+                    isRefreshing = isRefreshing,
                     onRefresh = {
                         isRefreshing = true
                         onLoad()
@@ -87,7 +79,6 @@ fun KnowledgeScreen(
                             isRefreshing = false
                         }
                     },
-                    state = pullToRefreshState,
                     modifier = Modifier.weight(1f)
                 ) {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -108,7 +99,6 @@ fun KnowledgeScreen(
                 }
             }
 
-            // 新規作成ボタン
             FloatingActionButton(
                 onClick = onCreate,
                 containerColor = PrimaryAccent,
@@ -124,7 +114,6 @@ fun KnowledgeScreen(
     }
 }
 
-// ... KnowledgeRow, KnowledgeEditor は変更なし ...
 @Composable
 fun KnowledgeRow(file: RepoContent, onClick: () -> Unit) {
     Row(
@@ -150,7 +139,7 @@ fun KnowledgeEditor(
     initialName: String,
     initialContent: String,
     isNewFile: Boolean,
-    statusMessage: String,
+    error: String?,
     isLoading: Boolean,
     onBack: () -> Unit,
     onSave: (String, String) -> Unit
@@ -163,7 +152,6 @@ fun KnowledgeEditor(
             .fillMaxSize()
             .background(AppBackground)
     ) {
-        // Toolbar
         Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.padding(8.dp),
@@ -208,6 +196,13 @@ fun KnowledgeEditor(
                     .fillMaxSize()
                     .weight(1f),
                 textStyle = LocalTextStyle.current.copy(lineHeight = 24.sp)            )
+        }
+        error?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(16.dp)
+            )
         }
     }
 }

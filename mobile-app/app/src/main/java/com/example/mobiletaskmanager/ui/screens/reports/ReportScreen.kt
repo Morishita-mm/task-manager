@@ -1,4 +1,4 @@
-package com.example.mobiletaskmanager.ui.screens
+package com.example.mobiletaskmanager.ui.screens.reports
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,40 +10,35 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.data.model.RepoContent
-import com.example.mobiletaskmanager.ui.MainUiState
-import com.example.mobiletaskmanager.ui.MainViewModel
 import com.example.mobiletaskmanager.ui.components.*
 import com.example.mobiletaskmanager.ui.theme.*
 import dev.jeziellago.compose.markdowntext.MarkdownText
-import kotlinx.coroutines.delay // 追加
-import kotlinx.coroutines.launch // 追加
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportScreen(
-    uiState: MainUiState,
-    viewModel: MainViewModel,
+    uiState: ReportUiState,
     onLoadReports: () -> Unit,
     onSelectReport: (String) -> Unit,
-    onBackToList: () -> Unit
+    onBackToList: () -> Unit,
+    onSetFilter: (String) -> Unit,
+    onSetSort: (SortOption) -> Unit
 ) {
     var showFilterSheet by remember { mutableStateOf(false) }
     var showSortSheet by remember { mutableStateOf(false) }
 
-    // ▼▼▼ 追加: ローカルでのリフレッシュ状態管理 ▼▼▼
     var isRefreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val pullToRefreshState = rememberPullToRefreshState()
 
     LaunchedEffect(Unit) {
         if (uiState.filteredReports.isEmpty()) {
@@ -62,7 +57,6 @@ fun ReportScreen(
                 onBack = onBackToList
             )
         } else {
-            // Header Row
             Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier
@@ -81,26 +75,23 @@ fun ReportScreen(
                     FilterSortButtons(
                         onFilterClick = { showFilterSheet = true },
                         onSortClick = { showSortSheet = true },
-                        activeFilterCount = if (uiState.reportFilterQuery.isNotEmpty()) 1 else 0
+                        activeFilterCount = if (uiState.filterQuery.isNotEmpty()) 1 else 0
                     )
                 }
             }
 
             HorizontalDivider(color = DividerColor)
 
-            // ▼▼▼ 修正: ローカルの isRefreshing を使用 ▼▼▼
             PullToRefreshBox(
-                isRefreshing = isRefreshing, // UI側で制御する変数に変更
+                isRefreshing = isRefreshing,
                 onRefresh = {
                     isRefreshing = true
                     onLoadReports()
-                    // 確実にアニメーションを終了させるために遅延後にフラグを戻す
                     scope.launch {
                         delay(1000)
                         isRefreshing = false
                     }
                 },
-                state = pullToRefreshState,
                 modifier = Modifier.weight(1f)
             ) {
                 ReportListView(
@@ -113,22 +104,21 @@ fun ReportScreen(
 
     if (showSortSheet) {
         SortBottomSheet(
-            currentSort = uiState.reportSortOption,
-            onSortSelected = viewModel::setReportSort,
+            currentSort = uiState.sortOption,
+            onSortSelected = onSetSort,
             onDismiss = { showSortSheet = false }
         )
     }
     if (showFilterSheet) {
         ReportFilterBottomSheet(
-            currentQuery = uiState.reportFilterQuery,
-            onApply = viewModel::setReportFilter,
-            onReset = { viewModel.setReportFilter("") },
+            currentQuery = uiState.filterQuery,
+            onApply = onSetFilter,
+            onReset = { onSetFilter("") },
             onDismiss = { showFilterSheet = false }
         )
     }
 }
 
-// ... ReportListView, ReportDetailView はそのまま ...
 @Composable
 fun ReportListView(
     reports: List<RepoContent>,

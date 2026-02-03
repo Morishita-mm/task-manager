@@ -1,4 +1,4 @@
-package com.example.mobiletaskmanager.ui.screens
+package com.example.mobiletaskmanager.ui.screens.tasks
 
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.background
@@ -30,8 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.ColorUtils
 import com.example.mobiletaskmanager.data.model.Issue
 import com.example.mobiletaskmanager.data.model.Label
-import com.example.mobiletaskmanager.ui.MainUiState
 import com.example.mobiletaskmanager.ui.components.*
+import com.example.mobiletaskmanager.ui.screens.tasks.TaskUiState
 import com.example.mobiletaskmanager.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskScreen(
-    uiState: MainUiState,
+    uiState: TaskUiState,
     onRefresh: () -> Unit,
     onCloseIssue: (Issue) -> Unit,
     onUpdateStatus: (Issue, Label) -> Unit,
@@ -56,7 +56,6 @@ fun TaskScreen(
     var showSortSheet by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
-    val pullToRefreshState = rememberPullToRefreshState()
 
     val statusLabels = remember(uiState.labels) {
         uiState.labels.filter { it.name.startsWith("s:") }.sortedBy { it.name }
@@ -101,7 +100,7 @@ fun TaskScreen(
                         FilterSortButtons(
                             onFilterClick = { showFilterSheet = true },
                             onSortClick = { showSortSheet = true },
-                            activeFilterCount = uiState.taskFilterCriteria.selectedLabels.size
+                            activeFilterCount = uiState.filterCriteria.selectedLabels.size
                         )
                     }
                 }
@@ -110,7 +109,6 @@ fun TaskScreen(
                 PullToRefreshBox(
                     isRefreshing = uiState.isRefreshing,
                     onRefresh = onRefresh,
-                    state = pullToRefreshState,
                     modifier = Modifier.weight(1f)
                 ) {
                     LazyColumn(
@@ -176,7 +174,7 @@ fun TaskScreen(
     // Sheets
     if (showSortSheet) {
         SortBottomSheet(
-            currentSort = uiState.taskSortOption,
+            currentSort = uiState.sortOption,
             onSortSelected = onSetTaskSort,
             onDismiss = { showSortSheet = false }
         )
@@ -184,7 +182,7 @@ fun TaskScreen(
     if (showFilterSheet) {
         TaskFilterBottomSheet(
             labels = uiState.labels,
-            currentFilter = uiState.taskFilterCriteria,
+            currentFilter = uiState.filterCriteria,
             onApply = onSetTaskFilter,
             onReset = { onSetTaskFilter(TaskFilterCriteria()) },
             onDismiss = { showFilterSheet = false }
@@ -192,7 +190,6 @@ fun TaskScreen(
     }
 }
 
-// ... Helper関数, TaskItemRow, Dialogs は以前の内容を維持 ...
 fun parseLabelColor(hex: String): Color {
     return try {
         val colorString = if (hex.startsWith("#")) hex else "#$hex"
