@@ -20,7 +20,6 @@ class IdeaViewModel(private val repository: GithubRepository) : ViewModel() {
         loadIdeas()
     }
 
-    // 引数 isRefresh を追加して、初回ロードとリフレッシュを使い分ける
     fun loadIdeas(isRefresh: Boolean = false) {
         viewModelScope.launch {
             if (isRefresh) {
@@ -53,7 +52,6 @@ class IdeaViewModel(private val repository: GithubRepository) : ViewModel() {
                     )
                 }
 
-                // 詳細表示中の場合は、選択中のデータも更新する
                 val currentSelected = _uiState.value.selectedIdea
                 if (currentSelected != null) {
                     val updatedSelected = ideasWithFeatures.find { it.idea.number == currentSelected.idea.number }
@@ -72,10 +70,10 @@ class IdeaViewModel(private val repository: GithubRepository) : ViewModel() {
 
     fun addIdea(title: String, body: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) } // 追加中もロード表示
+            _uiState.update { it.copy(isLoading = true) }
             try {
                 repository.createIssue(title, listOf("type:idea"), body)
-                loadIdeas(isRefresh = true) // 追加後に最新化
+                loadIdeas(isRefresh = true)
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message, isLoading = false) }
             }
@@ -88,7 +86,7 @@ class IdeaViewModel(private val repository: GithubRepository) : ViewModel() {
             val body = "Parent: #${parentIdea.number}"
             try {
                 repository.createIssue(title, listOf("type:feature"), body)
-                loadIdeas(isRefresh = true) // 追加後に最新化
+                loadIdeas(isRefresh = true)
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message, isLoading = false) }
             }
@@ -97,19 +95,24 @@ class IdeaViewModel(private val repository: GithubRepository) : ViewModel() {
 
     fun closeIssueAndSubIssues(issue: Issue) {
         viewModelScope.launch {
+            // 1. まず詳細画面でローディングを表示（まだ一覧には戻らない）
             _uiState.update { it.copy(isLoading = true) }
+
             try {
                 val ideaWithFeatures = _uiState.value.ideas.find { it.idea.number == issue.number }
 
-                if (ideaWithFeatures != null) {
-                    ideaWithFeatures.features.forEach { feature ->
-                        repository.closeIssue(feature.number)
-                    }
+                // 2. 関連する子Issue（Feature）をすべてクローズ
+                ideaWithFeatures?.features?.forEach { feature ->
+                    repository.closeIssue(feature.number)
                 }
+
+                // 3. 大元（Idea）のIssueをクローズ
                 repository.closeIssue(issue.number)
 
-                // クローズ後は詳細画面を閉じる
+                // 4. すべてのクローズ処理が完了したタイミングで、詳細画面を閉じて一覧に戻る
                 _uiState.update { it.copy(selectedIdea = null) }
+
+                // 5. 最新のリスト状態に更新する
                 loadIdeas(isRefresh = true)
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message, isLoading = false) }
