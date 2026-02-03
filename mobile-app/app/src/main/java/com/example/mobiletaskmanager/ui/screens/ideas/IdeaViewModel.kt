@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 class IdeaViewModel(private val repository: GithubRepository) : ViewModel() {
 
@@ -22,109 +23,82 @@ class IdeaViewModel(private val repository: GithubRepository) : ViewModel() {
 
     fun loadIdeas(isRefresh: Boolean = false) {
         viewModelScope.launch {
-            if (isRefresh) {
-                _uiState.update { it.copy(isRefreshing = true) }
-            } else {
-                _uiState.update { it.copy(isLoading = true) }
-            }
-
+            if (isRefresh) _uiState.update { it.copy(isRefreshing = true) } else _uiState.update { it.copy(isLoading = true) }
             try {
                 val allIssues = repository.getIssues()
-
                 val ideas = allIssues.filter { it.labels.any { l -> l.name == "type:idea" } }
                 val features = allIssues.filter { it.labels.any { l -> l.name == "type:feature" } }
-
                 val ideasWithFeatures = ideas.map { idea ->
                     val relatedFeatures = features.filter { feature ->
-                        parentRegex.find(feature.body ?: "")?.let { matchResult ->
-                            matchResult.destructured.component1().toInt() == idea.number
-                        } ?: false
+                        parentRegex.find(feature.body ?: "")?.let { it.destructured.component1().toInt() == idea.number } ?: false
                     }
                     IdeaWithFeatures(idea, relatedFeatures)
                 }
-
-                _uiState.update {
-                    it.copy(
-                        ideas = ideasWithFeatures,
-                        isLoading = false,
-                        isRefreshing = false,
-                        error = null
-                    )
+                _uiState.update { it.copy(ideas = ideasWithFeatures, isLoading = false, isRefreshing = false, error = null) }
+                _uiState.value.selectedIdea?.let { current ->
+                    ideasWithFeatures.find { it.idea.number == current.idea.number }?.let { updated ->
+                        _uiState.update { it.copy(selectedIdea = updated) }
+                    }
                 }
-
-                val currentSelected = _uiState.value.selectedIdea
-                if (currentSelected != null) {
-                    val updatedSelected = ideasWithFeatures.find { it.idea.number == currentSelected.idea.number }
-                    _uiState.update { it.copy(selectedIdea = updatedSelected) }
-                }
-
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message, isLoading = false, isRefreshing = false) }
             }
         }
     }
 
-    fun selectIdea(idea: IdeaWithFeatures?) {
-        _uiState.update { it.copy(selectedIdea = idea) }
-    }
+    fun selectIdea(idea: IdeaWithFeatures?) { _uiState.update { it.copy(selectedIdea = idea) } }
 
     fun addIdea(title: String, body: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            try {
-                repository.createIssue(title, listOf("type:idea"), body)
-                loadIdeas(isRefresh = true)
-            } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message, isLoading = false) }
-            }
+            try { repository.createIssue(title, listOf("type:idea"), body); loadIdeas(isRefresh = true) }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message, isLoading = false) } }
         }
     }
 
     fun addFeature(parentIdea: Issue, title: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val body = "Parent: #${parentIdea.number}"
-            try {
-                repository.createIssue(title, listOf("type:feature"), body)
-                loadIdeas(isRefresh = true)
-            } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message, isLoading = false) }
-            }
+            try { repository.createIssue(title, listOf("type:feature"), "Parent: #${parentIdea.number}"); loadIdeas(isRefresh = true) }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message, isLoading = false) } }
         }
     }
 
-    // アイデアとそれに紐づく全機能をクローズする
     fun closeIssueAndSubIssues(issue: Issue) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val ideaWithFeatures = _uiState.value.ideas.find { it.idea.number == issue.number }
-
-                if (ideaWithFeatures != null) {
-                    ideaWithFeatures.features.forEach { feature ->
-                        repository.closeIssue(feature.number)
-                    }
-                }
+                _uiState.value.ideas.find { it.idea.number == issue.number }?.features?.forEach { repository.closeIssue(it.number) }
                 repository.closeIssue(issue.number)
-
                 _uiState.update { it.copy(selectedIdea = null) }
                 loadIdeas(isRefresh = true)
-            } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message, isLoading = false) }
-            }
+            } catch (e: Exception) { _uiState.update { it.copy(error = e.message, isLoading = false) } }
         }
     }
 
-    // 追加：特定の機能（Feature）のみをクローズする
     fun closeFeature(feature: Issue) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
+            try { repository.closeIssue(feature.number); loadIdeas(isRefresh = true) }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message, isLoading = false) } }
+        }
+    }
+
+    fun exportIdeaToMarkdown(ideaWithFeatures: IdeaWithFeatures) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
             try {
-                repository.closeIssue(feature.number)
-                loadIdeas(isRefresh = true)
-            } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message, isLoading = false) }
-            }
+                val markdown = buildString {
+                    appendLine("# ${ideaWithFeatures.idea.title}")
+                    appendLine("\n## Description\n${ideaWithFeatures.idea.body ?: "No description provided."}")
+                    appendLine("\n## Features")
+                    ideaWithFeatures.features.forEach { appendLine("- [ ] ${it.title} (Issue #${it.number})") }
+                    appendLine("\n---\nGenerated by TaskManager App on ${LocalDate.now()}")
+                }
+                val fileName = ideaWithFeatures.idea.title.lowercase().replace(Regex("[^a-z0-9]"), "-").take(30) + ".md"
+                repository.saveFile("ideas/$fileName", markdown, "docs: Export Idea '${ideaWithFeatures.idea.title}'")
+                _uiState.update { it.copy(isLoading = false) }
+            } catch (e: Exception) { _uiState.update { it.copy(error = e.message, isLoading = false) } }
         }
     }
 }

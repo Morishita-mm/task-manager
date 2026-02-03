@@ -135,4 +135,20 @@ class GithubRepository(
             api.updateFileContent(authHeader, owner, repo, path, request)
         }
     }
+
+    suspend fun saveFile(path: String, content: String, message: String) {
+        val encodedContent = Base64.encodeToString(content.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+
+        val sha = try {
+            api.getFileContent(authHeader, owner, repo, path).sha
+        } catch (e: Exception) {
+            null
+        }
+
+        if (sha == null) {
+            api.createFileContent(authHeader, owner, repo, path, CreateFileRequest(message, encodedContent))
+        } else {
+            api.updateFileContent(authHeader, owner, repo, path, UpdateFileRequest(message, encodedContent, sha))
+        }
+    }
 }
