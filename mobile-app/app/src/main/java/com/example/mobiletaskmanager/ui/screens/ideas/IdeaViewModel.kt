@@ -93,26 +93,34 @@ class IdeaViewModel(private val repository: GithubRepository) : ViewModel() {
         }
     }
 
+    // アイデアとそれに紐づく全機能をクローズする
     fun closeIssueAndSubIssues(issue: Issue) {
         viewModelScope.launch {
-            // 1. まず詳細画面でローディングを表示（まだ一覧には戻らない）
             _uiState.update { it.copy(isLoading = true) }
-
             try {
                 val ideaWithFeatures = _uiState.value.ideas.find { it.idea.number == issue.number }
 
-                // 2. 関連する子Issue（Feature）をすべてクローズ
-                ideaWithFeatures?.features?.forEach { feature ->
-                    repository.closeIssue(feature.number)
+                if (ideaWithFeatures != null) {
+                    ideaWithFeatures.features.forEach { feature ->
+                        repository.closeIssue(feature.number)
+                    }
                 }
-
-                // 3. 大元（Idea）のIssueをクローズ
                 repository.closeIssue(issue.number)
 
-                // 4. すべてのクローズ処理が完了したタイミングで、詳細画面を閉じて一覧に戻る
                 _uiState.update { it.copy(selectedIdea = null) }
+                loadIdeas(isRefresh = true)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message, isLoading = false) }
+            }
+        }
+    }
 
-                // 5. 最新のリスト状態に更新する
+    // 追加：特定の機能（Feature）のみをクローズする
+    fun closeFeature(feature: Issue) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            try {
+                repository.closeIssue(feature.number)
                 loadIdeas(isRefresh = true)
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message, isLoading = false) }

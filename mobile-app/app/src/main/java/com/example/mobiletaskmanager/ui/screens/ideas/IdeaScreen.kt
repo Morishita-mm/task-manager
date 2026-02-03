@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete // 追加
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -47,9 +48,10 @@ fun IdeaScreen(
             IdeaDetailScreen(
                 uiState = uiState,
                 ideaWithFeatures = uiState.selectedIdea!!,
-                onRefresh = { viewModel.loadIdeas(isRefresh = true) }, // リフレッシュ機能を追加
+                onRefresh = { viewModel.loadIdeas(isRefresh = true) },
                 onAddFeature = { title -> viewModel.addFeature(uiState.selectedIdea!!.idea, title) },
-                onCloseIssue = { issue -> viewModel.closeIssueAndSubIssues(issue) },
+                onCloseIdea = { issue -> viewModel.closeIssueAndSubIssues(issue) }, // メソッド名を合わせる
+                onCloseFeature = { feature -> viewModel.closeFeature(feature) }, // 追加
                 onBack = { viewModel.selectIdea(null) }
             )
         } else {
@@ -58,7 +60,8 @@ fun IdeaScreen(
                 ideas = uiState.ideas,
                 onRefresh = { viewModel.loadIdeas(isRefresh = true) },
                 onAddIdea = { title, body -> viewModel.addIdea(title, body) },
-                onIdeaClick = { idea -> viewModel.selectIdea(idea) }
+                onIdeaClick = { idea -> viewModel.selectIdea(idea) },
+                onCloseIdea = { issue -> viewModel.closeIssueAndSubIssues(issue) } // 追加
             )
         }
     }
@@ -71,7 +74,8 @@ fun IdeaListScreen(
     ideas: List<IdeaWithFeatures>,
     onRefresh: () -> Unit,
     onAddIdea: (String, String) -> Unit,
-    onIdeaClick: (IdeaWithFeatures) -> Unit
+    onIdeaClick: (IdeaWithFeatures) -> Unit,
+    onCloseIdea: (Issue) -> Unit // 追加
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
@@ -89,7 +93,6 @@ fun IdeaListScreen(
             }
             HorizontalDivider(color = DividerColor)
 
-            // ▼▼▼ リフレッシュ機能の追加 ▼▼▼
             PullToRefreshBox(
                 isRefreshing = uiState.isRefreshing,
                 onRefresh = onRefresh,
@@ -100,7 +103,8 @@ fun IdeaListScreen(
                     items(ideas) { ideaWithFeatures ->
                         IdeaItem(
                             ideaWithFeatures = ideaWithFeatures,
-                            onClick = { onIdeaClick(ideaWithFeatures) }
+                            onClick = { onIdeaClick(ideaWithFeatures) },
+                            onClose = { onCloseIdea(ideaWithFeatures.idea) } // 追加
                         )
                         HorizontalDivider(color = DividerColor, thickness = 0.5.dp)
                     }
@@ -135,7 +139,8 @@ fun IdeaListScreen(
 @Composable
 fun IdeaItem(
     ideaWithFeatures: IdeaWithFeatures,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onClose: () -> Unit // 追加
 ) {
     Surface(
         modifier = Modifier
@@ -143,19 +148,27 @@ fun IdeaItem(
             .clickable(onClick = onClick),
         color = Color.Transparent
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = ideaWithFeatures.idea.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Features: ${ideaWithFeatures.features.size}",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
-            )
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = ideaWithFeatures.idea.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Features: ${ideaWithFeatures.features.size}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+            IconButton(onClick = onClose) {
+                Icon(Icons.Default.Delete, contentDescription = "Close Idea", tint = TextSecondary)
+            }
         }
     }
 }
@@ -165,16 +178,16 @@ fun IdeaItem(
 fun IdeaDetailScreen(
     uiState: IdeaUiState,
     ideaWithFeatures: IdeaWithFeatures,
-    onRefresh: () -> Unit, // 追加
+    onRefresh: () -> Unit,
     onAddFeature: (String) -> Unit,
-    onCloseIssue: (Issue) -> Unit,
+    onCloseIdea: (Issue) -> Unit, // メソッド名変更
+    onCloseFeature: (Issue) -> Unit, // 追加
     onBack: () -> Unit
 ) {
     var showAddFeatureDialog by remember { mutableStateOf(false) }
-    val pullToRefreshState = rememberPullToRefreshState() // 状態管理を追加
+    val pullToRefreshState = rememberPullToRefreshState()
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Toolbar
         Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.padding(8.dp),
@@ -191,7 +204,6 @@ fun IdeaDetailScreen(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                // ローディングインジケーター（リフレッシュ中でない通常のロード時）
                 if (uiState.isLoading && !uiState.isRefreshing) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp).padding(4.dp),
@@ -204,7 +216,6 @@ fun IdeaDetailScreen(
         HorizontalDivider(color = DividerColor)
 
         Box(modifier = Modifier.fillMaxSize()) {
-            // ▼▼▼ 追加: 詳細画面全体をリフレッシュ可能にする ▼▼▼
             PullToRefreshBox(
                 isRefreshing = uiState.isRefreshing,
                 onRefresh = onRefresh,
@@ -249,18 +260,26 @@ fun IdeaDetailScreen(
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                             border = androidx.compose.foundation.BorderStroke(0.5.dp, DividerColor)
                         ) {
-                            Text(
-                                text = feature.title,
-                                modifier = Modifier.padding(16.dp),
-                                color = TextPrimary
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = feature.title,
+                                    modifier = Modifier.weight(1f),
+                                    color = TextPrimary
+                                )
+                                IconButton(onClick = { onCloseFeature(feature) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Close Feature", tint = TextSecondary)
+                                }
+                            }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(32.dp))
 
                     Button(
-                        onClick = { onCloseIssue(ideaWithFeatures.idea) },
+                        onClick = { onCloseIdea(ideaWithFeatures.idea) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryAccent.copy(alpha = 0.6f)),
                         shape = RoundedCornerShape(12.dp)
@@ -297,6 +316,7 @@ fun IdeaDetailScreen(
     }
 }
 
+// ... AddIdeaDialog と AddFeatureDialog は変更なし ...
 @Composable
 fun AddIdeaDialog(
     onAddIdea: (String, String) -> Unit,
