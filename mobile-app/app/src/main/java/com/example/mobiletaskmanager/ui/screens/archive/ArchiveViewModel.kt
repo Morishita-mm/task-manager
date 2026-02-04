@@ -37,7 +37,7 @@ class ArchiveViewModel(private val repository: GithubRepository) : ViewModel() {
             try {
                 val oneWeekAgo = Instant.now().minus(7, ChronoUnit.DAYS).toString()
                 val closed = repository.getClosedIssues(since = oneWeekAgo)
-                _rawIssues = closed
+                _rawIssues = closed.filter { it.labels.none { l -> l.name == "type:note" || l.name == "type:idea" || l.name == "type:feature" }}
                 applyFiltersAndSort()
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
