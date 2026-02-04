@@ -106,7 +106,7 @@ fun ReportScreen(
         SortBottomSheet(
             currentSort = uiState.sortOption,
             onSortSelected = onSetSort,
-            onDismiss = { }
+            onDismiss = { showSortSheet = false }
         )
     }
     if (showFilterSheet) {
@@ -114,7 +114,7 @@ fun ReportScreen(
             currentQuery = uiState.filterQuery,
             onApply = onSetFilter,
             onReset = { onSetFilter("") },
-            onDismiss = { }
+            onDismiss = { showFilterSheet = false }
         )
     }
 }

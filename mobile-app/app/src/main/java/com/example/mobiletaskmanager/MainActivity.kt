@@ -25,8 +25,6 @@ import retrofit2.Retrofit
 
 class MainActivity : ComponentActivity() {
 
-    private val json = Json { ignoreUnknownKeys = true }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
