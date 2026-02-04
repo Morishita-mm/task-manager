@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.mobiletaskmanager.data.model.Issue
@@ -27,6 +29,12 @@ import com.example.mobiletaskmanager.ui.theme.*
 @Composable
 fun IdeaScreen(uiState: IdeaUiState, viewModel: IdeaViewModel) {
     Box(modifier = Modifier.fillMaxSize().background(AppBackground)) {
+        val filteredIdeas = if (uiState.showClosed) {
+            uiState.ideas
+        } else {
+            uiState.ideas.filter { it.idea.state == "open" }
+        }
+
         if (uiState.isLoading && uiState.ideas.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = PrimaryAccent) }
         } else if (uiState.error != null && uiState.ideas.isEmpty()) {
@@ -36,16 +44,18 @@ fun IdeaScreen(uiState: IdeaUiState, viewModel: IdeaViewModel) {
                 uiState = uiState,
                 ideaWithFeatures = uiState.selectedIdea!!,
                 onRefresh = { viewModel.loadIdeas(isRefresh = true) },
+                onToggleClosed = { viewModel.toggleShowClosed() },
                 onAddFeature = { title -> viewModel.addFeature(uiState.selectedIdea!!.idea, title) },
                 onCloseIdea = { issue -> viewModel.closeIssueAndSubIssues(issue) },
                 onCloseFeature = { feature -> viewModel.closeFeature(feature) },
-                onExport = { viewModel.exportIdeaToMarkdown(it) }, // 追加
+                onExport = { viewModel.exportIdeaToMarkdown(it) },
                 onBack = { viewModel.selectIdea(null) }
             )
         } else {
             IdeaListScreen(
                 uiState = uiState,
-                ideas = uiState.ideas,
+                ideas = filteredIdeas,
+                onToggleClosed = { viewModel.toggleShowClosed() },
                 onRefresh = { viewModel.loadIdeas(isRefresh = true) },
                 onAddIdea = { title, body -> viewModel.addIdea(title, body) },
                 onIdeaClick = { idea -> viewModel.selectIdea(idea) },
@@ -60,20 +70,27 @@ fun IdeaScreen(uiState: IdeaUiState, viewModel: IdeaViewModel) {
 fun IdeaDetailScreen(
     uiState: IdeaUiState,
     ideaWithFeatures: IdeaWithFeatures,
+    onToggleClosed: () -> Unit,
     onRefresh: () -> Unit,
     onAddFeature: (String) -> Unit,
     onCloseIdea: (Issue) -> Unit,
     onCloseFeature: (Issue) -> Unit,
-    onExport: (IdeaWithFeatures) -> Unit, // 追加
+    onExport: (IdeaWithFeatures) -> Unit,
     onBack: () -> Unit
 ) {
     var showAddFeatureDialog by remember { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
 
+    val displayedFeatures = if (uiState.showClosed) {
+        ideaWithFeatures.features
+    } else {
+        ideaWithFeatures.features.filter { it.state == "open" }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
             Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary) }
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary) }
                 Text(
                     text = ideaWithFeatures.idea.title,
                     style = MaterialTheme.typography.titleMedium,
@@ -82,7 +99,13 @@ fun IdeaDetailScreen(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                // エクスポートボタンを追加
+                IconButton(onClick = onToggleClosed) {
+                    Icon(
+                        if (uiState.showClosed) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        contentDescription = "Toggle Closed Features",
+                        tint = if (uiState.showClosed) PrimaryAccent else TextSecondary
+                    )
+                }
                 IconButton(onClick = { onExport(ideaWithFeatures) }) {
                     Icon(Icons.Default.Description, contentDescription = "Export to Markdown", tint = PrimaryAccent)
                 }
@@ -101,16 +124,35 @@ fun IdeaDetailScreen(
                     Spacer(modifier = Modifier.height(24.dp))
                     Text(text = "Features", style = MaterialTheme.typography.titleSmall, color = PrimaryAccent, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
-                    ideaWithFeatures.features.forEach { feature ->
-                        Card(colors = CardDefaults.cardColors(containerColor = SurfaceColor), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = androidx.compose.foundation.BorderStroke(0.5.dp, DividerColor)) {
+
+                    displayedFeatures.forEach { feature ->
+                        val isClosed = feature.state == "closed"
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, DividerColor)
+                        ) {
                             Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(text = feature.title, modifier = Modifier.weight(1f), color = TextPrimary)
-                                IconButton(onClick = { onCloseFeature(feature) }) { Icon(Icons.Default.Delete, contentDescription = "Close Feature", tint = TextSecondary) }
+                                Text(
+                                    text = feature.title,
+                                    modifier = Modifier.weight(1f),
+                                    color = if (isClosed) TextSecondary else TextPrimary,
+                                    textDecoration = if (isClosed) TextDecoration.LineThrough else null
+                                )
+                                IconButton(onClick = { onCloseFeature(feature) }, enabled = !isClosed) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Close Feature",
+                                        tint = if (isClosed) Color.Transparent else TextSecondary
+                                    )
+                                }
                             }
                         }
                     }
                     Spacer(modifier = Modifier.height(32.dp))
-                    Button(onClick = { onCloseIdea(ideaWithFeatures.idea) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = PrimaryAccent.copy(alpha = 0.6f)), shape = RoundedCornerShape(12.dp)) { Text("Close Idea and Features", color = Color.White) }
+                    if (ideaWithFeatures.idea.state == "open") {
+                        Button(onClick = { onCloseIdea(ideaWithFeatures.idea) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = PrimaryAccent.copy(alpha = 0.6f)), shape = RoundedCornerShape(12.dp)) { Text("Close Idea and Features", color = Color.White) }
+                    }
                     Spacer(modifier = Modifier.height(88.dp))
                 }
             }
@@ -120,12 +162,12 @@ fun IdeaDetailScreen(
     if (showAddFeatureDialog) { AddFeatureDialog(onAddFeature = { title -> onAddFeature(title); showAddFeatureDialog = false }, onDismiss = { showAddFeatureDialog = false }) }
 }
 
-// ... IdeaListScreen, IdeaItem, Dialogs は以前のまま維持 ...
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IdeaListScreen(
     uiState: IdeaUiState,
     ideas: List<IdeaWithFeatures>,
+    onToggleClosed: () -> Unit,
     onRefresh: () -> Unit,
     onAddIdea: (String, String) -> Unit,
     onIdeaClick: (IdeaWithFeatures) -> Unit,
@@ -136,7 +178,22 @@ fun IdeaListScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             Surface(color = SurfaceColor, modifier = Modifier.fillMaxWidth()) {
-                Text(text = "Active Ideas: ${ideas.size}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (uiState.showClosed) "All Ideas" else "Active Ideas: ${ideas.size}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        modifier = Modifier.weight(1f).padding(16.dp)
+                    )
+                    IconButton(onClick = onToggleClosed) {
+                        Icon(
+                            if (uiState.showClosed) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = "Toggle Closed",
+                            tint = if (uiState.showClosed) PrimaryAccent else TextSecondary
+                        )
+                    }
+                }
             }
             HorizontalDivider(color = DividerColor)
             PullToRefreshBox(isRefreshing = uiState.isRefreshing, onRefresh = onRefresh, state = pullToRefreshState, modifier = Modifier.weight(1f)) {
@@ -155,14 +212,23 @@ fun IdeaListScreen(
 
 @Composable
 fun IdeaItem(ideaWithFeatures: IdeaWithFeatures, onClick: () -> Unit, onClose: () -> Unit) {
+    val isClosed = ideaWithFeatures.idea.state == "closed"
     Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), color = Color.Transparent) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = ideaWithFeatures.idea.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text(
+                    text = ideaWithFeatures.idea.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isClosed) TextSecondary else TextPrimary,
+                    textDecoration = if (isClosed) TextDecoration.LineThrough else null
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(text = "Features: ${ideaWithFeatures.features.size}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
-            IconButton(onClick = onClose) { Icon(Icons.Default.Delete, contentDescription = "Close Idea", tint = TextSecondary) }
+            if (!isClosed) {
+                IconButton(onClick = onClose) { Icon(Icons.Default.Delete, contentDescription = "Close Idea", tint = TextSecondary) }
+            }
         }
     }
 }

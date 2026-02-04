@@ -21,8 +21,8 @@ class GithubRepository(
 ) {
     private val authHeader = "token $token"
 
-    suspend fun getIssues(): List<Issue> {
-        return api.getIssues(authHeader, owner, repo, state = "open")
+    suspend fun getIssues(state: String = "open"): List<Issue> {
+        return api.getIssues(authHeader, owner, repo, state = state)
     }
 
     suspend fun getNotes(since: String): List<Issue> {
