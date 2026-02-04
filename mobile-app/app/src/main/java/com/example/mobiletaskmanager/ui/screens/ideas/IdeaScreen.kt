@@ -81,6 +81,8 @@ fun IdeaDetailScreen(
     var showAddFeatureDialog by remember { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
 
+    val isIdeaOpen = ideaWithFeatures.idea.state == "open"
+
     val displayedFeatures = if (uiState.showClosed) {
         ideaWithFeatures.features
     } else {
@@ -156,7 +158,19 @@ fun IdeaDetailScreen(
                     Spacer(modifier = Modifier.height(88.dp))
                 }
             }
-            FloatingActionButton(onClick = { showAddFeatureDialog = true }, containerColor = PrimaryAccent, contentColor = SurfaceColor, shape = RoundedCornerShape(16.dp), modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) { Icon(Icons.Default.Add, contentDescription = "Add Feature") }
+            if (isIdeaOpen) {
+                FloatingActionButton(
+                    onClick = { showAddFeatureDialog = true },
+                    containerColor = PrimaryAccent,
+                    contentColor = SurfaceColor,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Feature")
+                }
+            }
         }
     }
     if (showAddFeatureDialog) { AddFeatureDialog(onAddFeature = { title -> onAddFeature(title); showAddFeatureDialog = false }, onDismiss = { showAddFeatureDialog = false }) }
