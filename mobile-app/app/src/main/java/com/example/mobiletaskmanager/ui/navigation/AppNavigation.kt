@@ -1,23 +1,20 @@
 package com.example.mobiletaskmanager.ui.navigation
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -40,7 +37,7 @@ import com.example.mobiletaskmanager.ui.theme.*
 import kotlinx.coroutines.launch
 
 enum class Screen(val title: String, val icon: ImageVector) {
-    Tasks("Tasks", Icons.Default.List),
+    Tasks("Tasks", Icons.AutoMirrored.Filled.List),
     Notes("Notes", Icons.Default.ChatBubbleOutline),
     Ideas("Ideas", Icons.Default.Lightbulb),
     Reports("Reports", Icons.Default.Description),
@@ -74,7 +71,7 @@ fun AppNavigation(
                 Text("Task Manager", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                 HorizontalDivider(color = DividerColor)
 
-                Screen.values().forEach { screen ->
+                Screen.entries.forEach { screen ->
                     NavigationDrawerItem(
                         icon = { Icon(screen.icon, contentDescription = null, tint = if(screen == currentScreen) PrimaryAccent else TextSecondary) },
                         label = { Text(screen.title, color = if(screen == currentScreen) PrimaryAccent else TextPrimary) },

@@ -42,10 +42,10 @@ fun IdeaScreen(uiState: IdeaUiState, viewModel: IdeaViewModel) {
         } else if (uiState.selectedIdea != null) {
             IdeaDetailScreen(
                 uiState = uiState,
-                ideaWithFeatures = uiState.selectedIdea!!,
+                ideaWithFeatures = uiState.selectedIdea,
                 onRefresh = { viewModel.loadIdeas(isRefresh = true) },
                 onToggleClosed = { viewModel.toggleShowClosed() },
-                onAddFeature = { title -> viewModel.addFeature(uiState.selectedIdea!!.idea, title) },
+                onAddFeature = { title -> viewModel.addFeature(uiState.selectedIdea.idea, title) },
                 onCloseIdea = { issue -> viewModel.closeIssueAndSubIssues(issue) },
                 onCloseFeature = { feature -> viewModel.closeFeature(feature) },
                 onExport = { viewModel.exportIdeaToMarkdown(it) },
@@ -173,7 +173,7 @@ fun IdeaDetailScreen(
             }
         }
     }
-    if (showAddFeatureDialog) { AddFeatureDialog(onAddFeature = { title -> onAddFeature(title); showAddFeatureDialog = false }, onDismiss = { showAddFeatureDialog = false }) }
+    if (showAddFeatureDialog) { AddFeatureDialog(onAddFeature = { title -> onAddFeature(title); }, onDismiss = { }) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -257,5 +257,5 @@ fun AddIdeaDialog(onAddIdea: (String, String) -> Unit, onDismiss: () -> Unit) {
 @Composable
 fun AddFeatureDialog(onAddFeature: (String) -> Unit, onDismiss: () -> Unit) {
     var title by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Add New Feature", color = TextPrimary) }, text = { OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }, confirmButton = { TextButton(onClick = { onAddFeature(title) }, enabled = title.isNotBlank()) { Text("Add", color = PrimaryAccent) } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) } }, containerColor = SurfaceColor)
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Add New Feature", color = TextPrimary) }, text = { OutlinedTextField(value = title, onValueChange = { }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth(), singleLine = true) }, confirmButton = { TextButton(onClick = { onAddFeature(title) }, enabled = title.isNotBlank()) { Text("Add", color = PrimaryAccent) } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) } }, containerColor = SurfaceColor)
 }

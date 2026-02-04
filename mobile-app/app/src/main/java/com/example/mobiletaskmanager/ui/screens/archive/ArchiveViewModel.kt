@@ -71,7 +71,7 @@ class ArchiveViewModel(private val repository: GithubRepository) : ViewModel() {
 
         if (filter.dateQuery.isNotEmpty()) {
             result = result.filter {
-                it.createdAt.toString().contains(filter.dateQuery)
+                it.createdAt.contains(filter.dateQuery)
             }
         }
 

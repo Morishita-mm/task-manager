@@ -15,7 +15,7 @@ data class UpdateIssueRequest(
 
 class GithubRepository(
     private val api: GithubApiService,
-    private val token: String,
+    token: String,
     private val owner: String,
     private val repo: String
 ) {
@@ -105,7 +105,7 @@ class GithubRepository(
     suspend fun getKnowledgeFiles(): List<RepoContent> {
         return try {
             api.getDirContents(authHeader, owner, repo, "knowledge")
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
     }
@@ -141,7 +141,7 @@ class GithubRepository(
 
         val sha = try {
             api.getFileContent(authHeader, owner, repo, path).sha
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
 
